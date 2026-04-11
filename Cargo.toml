@@ -1,6 +1,15 @@
+# SPDX-FileCopyrightText: 2026 John Irle
+#
+# SPDX-License-Identifier: MIT
+
 [package]
 name = "interpreter-in-rust"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+
+[lints.clippy]
+pedantic = { priority = -1, level = "deny" }
+nursery = { priority = -1, level = "deny" }
+unwrap_used = "deny"
