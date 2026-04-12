@@ -1,0 +1,69 @@
+// SPDX-FileCopyrightText: 2026 John Irle
+//
+// SPDX-License-Identifier: MIT
+
+use std::fmt;
+
+pub struct Token {
+    pub token_type: TokenType,
+    pub literal: String,
+}
+
+impl Token {
+    pub const fn new(token_type: TokenType, literal: String) -> Self {
+        Self {
+            token_type,
+            literal,
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum TokenType {
+    Illegal,
+    Eof,
+    Ident,
+    Int,
+    Assign,
+    Plus,
+    Comma,
+    SemiColon,
+    LParen,
+    RParen,
+    LBrace,
+    RBrace,
+    Function,
+    Let,
+}
+
+impl TokenType {
+    pub fn lookup_ident(value: &str) -> Self {
+        match value {
+            "let" => Self::Let,
+            "fn" => Self::Function,
+            _ => Self::Ident,
+        }
+    }
+}
+
+impl fmt::Display for TokenType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let s = match self {
+            Self::Eof => "EOF",
+            Self::Ident => "IDENT",
+            Self::Int => "ENT",
+            Self::Assign => "ASSIGN",
+            Self::Plus => "PLUS",
+            Self::Comma => "COMMA",
+            Self::SemiColon => "SEMICOLON",
+            Self::LParen => "LPAREN",
+            Self::RParen => "RPAREN",
+            Self::LBrace => "LBRAC",
+            Self::RBrace => "RBRACE",
+            Self::Function => "FUNCTION",
+            Self::Let => "LET",
+            Self::Illegal => "ILLEGAL",
+        };
+        write!(f, "{s}")
+    }
+}
