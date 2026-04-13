@@ -4,6 +4,7 @@
 
 use std::fmt;
 
+#[derive(Debug)]
 pub struct Token {
     pub token_type: TokenType,
     pub literal: String,
@@ -38,6 +39,8 @@ pub enum TokenType {
     RParen,
     LBrace,
     RBrace,
+    Eq,
+    NotEq,
     Function,
     Let,
     True,
@@ -82,6 +85,8 @@ impl fmt::Display for TokenType {
             Self::RParen => "RPAREN",
             Self::LBrace => "LBRAC",
             Self::RBrace => "RBRACE",
+            Self::Eq => "EQ",
+            Self::NotEq => "NOT_EQ",
             Self::Function => "FUNCTION",
             Self::Let => "LET",
             Self::True => "TRUE",

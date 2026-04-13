@@ -37,12 +37,25 @@ impl Lexer {
 
     fn next_token(&mut self) -> Token {
         self.skip_whitespace();
-        dbg!(self.ch);
         let token = match self.ch {
-            Some('=') => Token::new(TokenType::Assign, "=".into()),
+            Some('=') => {
+                if self.peek_char() == Some('=') {
+                    self.read_char();
+                    Token::new(TokenType::Eq, "==".into())
+                } else {
+                    Token::new(TokenType::Assign, "=".into())
+                }
+            }
             Some('+') => Token::new(TokenType::Plus, "+".into()),
             Some('-') => Token::new(TokenType::Minus, "-".into()),
-            Some('!') => Token::new(TokenType::Bang, "!".into()),
+            Some('!') => {
+                if self.peek_char() == Some('=') {
+                    self.read_char();
+                    Token::new(TokenType::NotEq, "!=".into())
+                } else {
+                    Token::new(TokenType::Bang, "!".into())
+                }
+            }
             Some('/') => Token::new(TokenType::Slash, "/".into()),
             Some('*') => Token::new(TokenType::Asterisk, "*".into()),
             Some('<') => Token::new(TokenType::Lt, "<".into()),
@@ -79,14 +92,11 @@ impl Lexer {
         }
 
         let word_length = self.position - position;
-        let word = self
-            .input
+        self.input
             .chars()
             .skip(position)
             .take(word_length)
-            .collect();
-        dbg!(&word);
-        word
+            .collect()
     }
 
     fn read_number(&mut self) -> String {
@@ -96,14 +106,11 @@ impl Lexer {
         }
 
         let digit_length = self.position - position;
-        let digit = self
-            .input
+        self.input
             .chars()
             .skip(position)
             .take(digit_length)
-            .collect();
-        dbg!(&digit);
-        digit
+            .collect()
     }
 
     fn skip_whitespace(&mut self) {
@@ -114,6 +121,13 @@ impl Lexer {
         {
             self.read_char();
         }
+    }
+
+    fn peek_char(&self) -> Option<char> {
+        if self.read_position >= self.input.len() {
+            return None;
+        }
+        self.input.chars().nth(self.read_position)
     }
 }
 
@@ -146,6 +160,9 @@ if (5 < 10) {
 } else {
     return false;
 }
+
+10 == 10;
+10 != 9;
 ";
 
         let tests = [
@@ -214,6 +231,14 @@ if (5 < 10) {
             (TokenType::False, "false"),
             (TokenType::SemiColon, ";"),
             (TokenType::RBrace, "}"),
+            (TokenType::Int, "10"),
+            (TokenType::Eq, "=="),
+            (TokenType::Int, "10"),
+            (TokenType::SemiColon, ";"),
+            (TokenType::Int, "10"),
+            (TokenType::NotEq, "!="),
+            (TokenType::Int, "9"),
+            (TokenType::SemiColon, ";"),
             (TokenType::Eof, ""),
         ];
 
@@ -222,7 +247,6 @@ if (5 < 10) {
         for (i, (expected_type, expected_literal)) in tests.iter().enumerate() {
             let tok = l.next_token();
 
-            dbg!(&tok.token_type);
             assert_eq!(
                 tok.token_type, *expected_type,
                 "tests[{i}] - token_type wrong."
