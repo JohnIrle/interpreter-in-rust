@@ -40,6 +40,11 @@ pub enum TokenType {
     RBrace,
     Function,
     Let,
+    True,
+    False,
+    If,
+    Else,
+    Return,
 }
 
 impl TokenType {
@@ -47,6 +52,11 @@ impl TokenType {
         match value {
             "let" => Self::Let,
             "fn" => Self::Function,
+            "true" => Self::True,
+            "false" => Self::False,
+            "if" => Self::If,
+            "else" => Self::Else,
+            "return" => Self::Return,
             _ => Self::Ident,
         }
     }
@@ -74,6 +84,11 @@ impl fmt::Display for TokenType {
             Self::RBrace => "RBRACE",
             Self::Function => "FUNCTION",
             Self::Let => "LET",
+            Self::True => "TRUE",
+            Self::False => "FALSE",
+            Self::If => "IF",
+            Self::Else => "ELSE",
+            Self::Return => "RETURN",
             Self::Illegal => "ILLEGAL",
         };
         write!(f, "{s}")
