@@ -40,11 +40,17 @@ impl Lexer {
         dbg!(self.ch);
         let token = match self.ch {
             Some('=') => Token::new(TokenType::Assign, "=".into()),
+            Some('+') => Token::new(TokenType::Plus, "+".into()),
+            Some('-') => Token::new(TokenType::Minus, "-".into()),
+            Some('!') => Token::new(TokenType::Bang, "!".into()),
+            Some('/') => Token::new(TokenType::Slash, "/".into()),
+            Some('*') => Token::new(TokenType::Asterisk, "*".into()),
+            Some('<') => Token::new(TokenType::Lt, "<".into()),
+            Some('>') => Token::new(TokenType::Gt, ">".into()),
+            Some(',') => Token::new(TokenType::Comma, ",".into()),
             Some(';') => Token::new(TokenType::SemiColon, ";".into()),
             Some('(') => Token::new(TokenType::LParen, "(".into()),
             Some(')') => Token::new(TokenType::RParen, ")".into()),
-            Some(',') => Token::new(TokenType::Comma, ",".into()),
-            Some('+') => Token::new(TokenType::Plus, "+".into()),
             Some('{') => Token::new(TokenType::LBrace, "{".into()),
             Some('}') => Token::new(TokenType::RBrace, "}".into()),
             Some(ch) if is_letter(Some(&ch)) => {
@@ -132,6 +138,8 @@ let add = fn(x, y) {
     x + y;
 };
 let result = add(five, ten);
+!-/*5;
+5 < 10 > 5;
 ";
 
         let tests = [
@@ -170,6 +178,18 @@ let result = add(five, ten);
             (TokenType::Comma, ","),
             (TokenType::Ident, "ten"),
             (TokenType::RParen, ")"),
+            (TokenType::SemiColon, ";"),
+            (TokenType::Bang, "!"),
+            (TokenType::Minus, "-"),
+            (TokenType::Slash, "/"),
+            (TokenType::Asterisk, "*"),
+            (TokenType::Int, "5"),
+            (TokenType::SemiColon, ";"),
+            (TokenType::Int, "5"),
+            (TokenType::Lt, "<"),
+            (TokenType::Int, "10"),
+            (TokenType::Gt, ">"),
+            (TokenType::Int, "5"),
             (TokenType::SemiColon, ";"),
             (TokenType::Eof, ""),
         ];
