@@ -31,18 +31,33 @@ impl Node for Identifier {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct ReturnStatement {
+    pub token: Token,
+    pub return_value: Option<Expression>,
+}
+
+impl Node for ReturnStatement {
+    fn token_literal(&self) -> String {
+        self.token.literal.clone()
+    }
+}
+
 pub enum Statement {
     Let(LetStatement),
+    Return(ReturnStatement),
 }
 
 impl Node for Statement {
     fn token_literal(&self) -> String {
         match self {
             Self::Let(s) => s.token_literal(),
+            Self::Return(s) => s.token_literal(),
         }
     }
 }
 
+#[derive(Debug, Clone)]
 pub enum Expression {
     Identifier(Identifier),
 }
