@@ -2,7 +2,9 @@
 //
 // SPDX-License-Identifier: MIT
 
+mod ast;
 mod lexer;
+mod parser;
 mod repl;
 mod token;
 

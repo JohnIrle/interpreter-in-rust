@@ -4,7 +4,7 @@
 
 use std::fmt;
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Token {
     pub token_type: TokenType,
     pub literal: String,
@@ -19,7 +19,7 @@ impl Token {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TokenType {
     Illegal,
     Eof,
@@ -70,23 +70,23 @@ impl fmt::Display for TokenType {
         let s = match self {
             Self::Eof => "EOF",
             Self::Ident => "IDENT",
-            Self::Int => "ENT",
-            Self::Assign => "ASSIGN",
-            Self::Plus => "PLUS",
-            Self::Minus => "MINUS",
-            Self::Bang => "BANG",
-            Self::Asterisk => "ASTERISK",
-            Self::Slash => "SLASH",
-            Self::Lt => "LT",
-            Self::Gt => "GT",
-            Self::Comma => "COMMA",
-            Self::SemiColon => "SEMICOLON",
-            Self::LParen => "LPAREN",
-            Self::RParen => "RPAREN",
-            Self::LBrace => "LBRAC",
-            Self::RBrace => "RBRACE",
-            Self::Eq => "EQ",
-            Self::NotEq => "NOT_EQ",
+            Self::Int => "INT",
+            Self::Assign => "=",
+            Self::Plus => "+",
+            Self::Minus => "-",
+            Self::Bang => "!",
+            Self::Asterisk => "*",
+            Self::Slash => "/",
+            Self::Lt => "<",
+            Self::Gt => ">",
+            Self::Comma => ",",
+            Self::SemiColon => ";",
+            Self::LParen => "(",
+            Self::RParen => ")",
+            Self::LBrace => "{",
+            Self::RBrace => "}",
+            Self::Eq => "==",
+            Self::NotEq => "!=",
             Self::Function => "FUNCTION",
             Self::Let => "LET",
             Self::True => "TRUE",
