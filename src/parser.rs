@@ -105,11 +105,11 @@ impl<'a> Parser<'a> {
 
         Some(Statement::Let(LetStatement {
             token,
-            name,
-            value: Expression::Identifier(Identifier {
+            name: Expression::Identifier(name),
+            value: Some(Expression::Identifier(Identifier {
                 token: name_token.clone(),
                 value: name_token.literal,
-            }),
+            })),
         }))
     }
 
@@ -217,22 +217,21 @@ return 993322;";
         }
 
         match statement {
-            Statement::Let(let_stmt) => {
-                if let_stmt.name.value != name {
-                    eprintln!(
-                        "let_stmt.name.value not '{}. got={}",
-                        name, let_stmt.name.value
-                    );
-                    return false;
-                }
+            Statement::Let(let_stmt) => match &let_stmt.name {
+                Expression::Identifier(ident) => {
+                    if ident.value != name {
+                        eprintln!("let_stmt.name.value not '{}. got={}", name, ident.value);
+                        return false;
+                    }
 
-                if let_stmt.name.token_literal() != name {
-                    eprintln!("let_stmt.name not '{:#?}. got={:#?}", name, let_stmt.name);
-                    return false;
+                    if let_stmt.name.token_literal() != name {
+                        eprintln!("let_stmt.name not '{:#?}. got={:#?}", name, let_stmt.name);
+                        return false;
+                    }
+                    true
                 }
-                true
-            }
-            Statement::Return(_) => false,
+            },
+            _ => false,
         }
     }
 
