@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: MIT
 
-use crate::ast::{Expression, Identifier, LetStatement, Program, Statement};
+use crate::ast::{Expression, Identifier, LetStatement, Program, ReturnStatement, Statement};
 use crate::lexer::Lexer;
 use crate::token::{Token, TokenType};
 
@@ -68,6 +68,7 @@ impl<'a> Parser<'a> {
         match &self.current_token {
             Some(token) => match token.token_type {
                 TokenType::Let => self.parse_let_statement(),
+                TokenType::Return => self.parse_return_statement(),
                 _ => None,
             },
             None => None,
@@ -109,6 +110,23 @@ impl<'a> Parser<'a> {
                 token: name_token.clone(),
                 value: name_token.literal,
             }),
+        }))
+    }
+
+    fn parse_return_statement(&mut self) -> Option<Statement> {
+        let token = self.current_token.clone()?;
+
+        self.next_token();
+
+        while self.current_token.is_some() {
+            if !self.cur_token_is(&TokenType::SemiColon) {
+                break;
+            }
+            self.next_token();
+        }
+        Some(Statement::Return(ReturnStatement {
+            token,
+            return_value: None,
         }))
     }
 
@@ -164,6 +182,34 @@ let foobar = 838383;
         }
     }
 
+    #[test]
+    fn test_return_statements() {
+        let input = r"return 5;
+return 10;
+return 993322;";
+
+        let mut lexer = Lexer::new(input);
+        let mut parser = Parser::new(&mut lexer);
+
+        let program = &parser.parse_program();
+        check_parser_errors(&parser);
+
+        assert_eq!(program.statements.len(), 3);
+
+        for statement in &program.statements {
+            if let Statement::Return(return_stmt) = statement {
+                if return_stmt.token_literal() != "return" {
+                    eprintln!(
+                        "returnStmt.TokenLiteral not 'return' got {}",
+                        return_stmt.token_literal()
+                    );
+                }
+            } else {
+                eprintln!("stmt ot ReturnStatement");
+            }
+        }
+    }
+
     fn test_let_statement(statement: &Statement, name: &str) -> bool {
         if statement.token_literal() != "let" {
             eprintln!("token_literal not 'let. got={}", statement.token_literal());
@@ -186,13 +232,14 @@ let foobar = 838383;
                 }
                 true
             }
+            Statement::Return(_) => false,
         }
     }
 
     fn check_parser_errors(parser: &Parser) {
         let errors = parser.errors();
 
-        if errors.len() == 0 {
+        if errors.is_empty() {
             return;
         }
 
