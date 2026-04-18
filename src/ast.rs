@@ -8,6 +8,7 @@ pub trait Node {
     fn string(&self) -> String;
 }
 
+#[derive(Debug)]
 pub struct LetStatement {
     pub token: Token,
     pub name: Expression,
@@ -63,8 +64,8 @@ impl Node for ReturnStatement {
 
 #[derive(Debug, Clone)]
 pub struct ExpressionStatement {
-    token: Token,
-    expression: Option<Expression>,
+    pub token: Token,
+    pub expression: Option<Expression>,
 }
 
 impl Node for ExpressionStatement {
@@ -81,6 +82,7 @@ impl Node for ExpressionStatement {
     }
 }
 
+#[derive(Debug)]
 pub enum Statement {
     Let(LetStatement),
     Return(ReturnStatement),

@@ -2,15 +2,37 @@
 //
 // SPDX-License-Identifier: MIT
 
-use crate::ast::{Expression, Identifier, LetStatement, Program, ReturnStatement, Statement};
+use crate::ast::{
+    Expression, ExpressionStatement, Identifier, LetStatement, Program, ReturnStatement, Statement,
+};
 use crate::lexer::Lexer;
+use crate::parser::Precedence::Lowest;
 use crate::token::{Token, TokenType};
+use std::collections::HashMap;
+
+type PrefixParseFn<'a> = fn(&mut Parser<'a>) -> Option<Expression>;
+type InfixParseFn = fn(Expression) -> Expression;
+
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[repr(u8)]
+enum Precedence {
+    Lowest = 0,
+    Equals,
+    LessGreater,
+    Sum,
+    Product,
+    Prefix,
+    Call,
+}
 
 pub struct Parser<'a> {
     lexer: &'a mut Lexer,
     current_token: Option<Token>,
     peek_token: Option<Token>,
     errors: Vec<String>,
+
+    prefix_parse_fns: HashMap<TokenType, PrefixParseFn<'a>>,
+    infix_parse_fns: HashMap<TokenType, InfixParseFn>,
 }
 
 impl<'a> Parser<'a> {
@@ -20,7 +42,11 @@ impl<'a> Parser<'a> {
             current_token: None,
             peek_token: None,
             errors: Vec::new(),
+            prefix_parse_fns: HashMap::new(),
+            infix_parse_fns: HashMap::new(),
         };
+
+        parser.register_prefix(TokenType::Ident, Parser::parse_identifier);
 
         parser.next_token();
         parser.next_token();
@@ -32,13 +58,21 @@ impl<'a> Parser<'a> {
         self.errors.clone()
     }
 
+    fn register_prefix(&mut self, token_type: TokenType, function: PrefixParseFn<'a>) {
+        self.prefix_parse_fns.insert(token_type, function);
+    }
+
+    fn register_infix(&mut self, token_type: TokenType, function: InfixParseFn) {
+        self.infix_parse_fns.insert(token_type, function);
+    }
+
     fn peek_error(&mut self, token_type: &TokenType) {
         let got = self
             .peek_token
             .as_ref()
             .map_or(&TokenType::Eof, |token| &token.token_type);
 
-        let message = format!("expected next token to be {token_type}, got {got} instead",);
+        let message = format!("expected next token to be {token_type}, got {got} instead");
         self.errors.push(message);
     }
 
@@ -69,7 +103,7 @@ impl<'a> Parser<'a> {
             Some(token) => match token.token_type {
                 TokenType::Let => self.parse_let_statement(),
                 TokenType::Return => self.parse_return_statement(),
-                _ => None,
+                _ => self.parse_expression_statement(),
             },
             None => None,
         }
@@ -78,10 +112,6 @@ impl<'a> Parser<'a> {
     fn parse_let_statement(&mut self) -> Option<Statement> {
         let token = self.current_token.clone()?;
 
-        if !self.cur_token_is(&TokenType::Let) {
-            return None;
-        }
-
         if !self.expect_peek(&TokenType::Ident) {
             return None;
         }
@@ -89,27 +119,25 @@ impl<'a> Parser<'a> {
         let name_token = self.current_token.clone()?;
         let name = Identifier {
             token: name_token.clone(),
-            value: name_token.literal.clone(),
+            value: name_token.literal,
         };
 
         if !self.expect_peek(&TokenType::Assign) {
             return None;
         }
 
-        while self.current_token.is_some() {
-            if !self.cur_token_is(&TokenType::SemiColon) {
-                break;
-            }
+        self.next_token();
+
+        let value = self.parse_expression(&Lowest);
+
+        if self.peek_token_is(&TokenType::SemiColon) {
             self.next_token();
         }
 
         Some(Statement::Let(LetStatement {
             token,
             name: Expression::Identifier(name),
-            value: Some(Expression::Identifier(Identifier {
-                token: name_token.clone(),
-                value: name_token.literal,
-            })),
+            value,
         }))
     }
 
@@ -118,15 +146,47 @@ impl<'a> Parser<'a> {
 
         self.next_token();
 
-        while self.current_token.is_some() {
-            if !self.cur_token_is(&TokenType::SemiColon) {
-                break;
-            }
+        let return_value = self.parse_expression(&Lowest);
+
+        if self.peek_token_is(&TokenType::SemiColon) {
             self.next_token();
         }
+
         Some(Statement::Return(ReturnStatement {
             token,
-            return_value: None,
+            return_value,
+        }))
+    }
+
+    fn parse_expression_statement(&mut self) -> Option<Statement> {
+        let token = self.current_token.clone()?;
+        let expression = self.parse_expression(&Precedence::Lowest);
+
+        if self.peek_token_is(&TokenType::SemiColon) {
+            self.next_token();
+        }
+
+        Some(Statement::Expression(ExpressionStatement {
+            token,
+            expression,
+        }))
+    }
+
+    fn parse_expression(&mut self, precedence: &Precedence) -> Option<Expression> {
+        let token = self.current_token.clone()?;
+        let prefix = self.prefix_parse_fns.get(&token.token_type);
+        if let Some(prefix_fn) = prefix {
+            let left_exp = prefix_fn(self);
+            return left_exp;
+        }
+        None
+    }
+
+    fn parse_identifier(&mut self) -> Option<Expression> {
+        let token = self.current_token.clone()?;
+        Some(Expression::Identifier(Identifier {
+            token: token.clone(),
+            value: token.literal,
         }))
     }
 
@@ -160,23 +220,22 @@ mod tests {
 
     #[test]
     fn test_let_statements() {
-        let input = r"let x = 5;
-let y = 10;
-let foobar = 838383;
-";
+        let tests = [
+            ("let x = 5;", "x", 5),
+            ("let y = 10;", "y", 10),
+            ("let foobar = 8383;", "foobar", 8383),
+        ];
 
-        let mut lexer = Lexer::new(input);
-        let mut parser = Parser::new(&mut lexer);
+        for (i, test_case) in tests.iter().enumerate() {
+            let mut lexer = Lexer::new(test_case.0);
+            let mut parser = Parser::new(&mut lexer);
 
-        let program = parser.parse_program();
-        check_parser_errors(&parser);
-        assert_eq!(program.statements.len(), 3);
+            let program = parser.parse_program();
+            check_parser_errors(&parser);
+            assert_eq!(program.statements.len(), 1);
 
-        let tests = ["x", "y", "foobar"];
-
-        for (i, expected_identifier) in tests.iter().enumerate() {
             let statement = &program.statements[i];
-            if !test_let_statement(statement, expected_identifier) {
+            if !test_let_statement(statement, test_case.0) {
                 return;
             }
         }
@@ -207,6 +266,41 @@ return 993322;";
             } else {
                 eprintln!("stmt ot ReturnStatement");
             }
+        }
+    }
+
+    #[test]
+    fn test_identifier_expression() {
+        let input = "foobar;";
+
+        let mut lexer = Lexer::new(input);
+        let mut parser = Parser::new(&mut lexer);
+        let program = parser.parse_program();
+
+        check_parser_errors(&parser);
+
+        assert_eq!(program.statements.len(), 1);
+
+        if let Statement::Expression(statement) = &program.statements[0] {
+            if let Some(expression) = &statement.expression {
+                match expression {
+                    Expression::Identifier(ident) => {
+                        let value = &ident.value;
+                        if value != "foobar" {
+                            eprintln!("ident value not foobar, got {value}");
+                        }
+
+                        let token_literal = ident.token_literal();
+                        if token_literal != "foobar" {
+                            eprintln!("ident token_literal not foobar, got {token_literal}");
+                        }
+                    }
+                }
+            } else {
+                eprintln!("express is not some");
+            }
+        } else {
+            eprintln!("program.statements[0] is not ExpressionStatement");
         }
     }
 
