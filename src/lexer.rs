@@ -132,11 +132,11 @@ impl Lexer {
 }
 
 fn is_letter(ch: Option<&char>) -> bool {
-    ch.is_none_or(|char| char.is_alphabetic() || *char == '_')
+    ch.is_some_and(|char| char.is_alphabetic() || *char == '_')
 }
 
 fn is_digit(ch: Option<&char>) -> bool {
-    ch.is_none_or(char::is_ascii_digit)
+    ch.is_some_and(char::is_ascii_digit)
 }
 
 #[cfg(test)]
