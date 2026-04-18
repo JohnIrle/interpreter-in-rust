@@ -124,19 +124,38 @@ impl Node for Identifier {
 }
 
 #[derive(Debug, Clone)]
+pub struct IntegerLiteral {
+    pub token: Token,
+    pub value: i64,
+}
+
+impl Node for IntegerLiteral {
+    fn token_literal(&self) -> String {
+        self.token.literal.clone()
+    }
+
+    fn string(&self) -> String {
+        self.value.to_string()
+    }
+}
+
+#[derive(Debug, Clone)]
 pub enum Expression {
     Identifier(Identifier),
+    IntegerLiteral(IntegerLiteral),
 }
 
 impl Node for Expression {
     fn token_literal(&self) -> String {
         match self {
             Self::Identifier(identifier) => identifier.token_literal(),
+            Self::IntegerLiteral(intger_literal) => intger_literal.token_literal(),
         }
     }
     fn string(&self) -> String {
         match self {
             Self::Identifier(identifier) => identifier.string(),
+            Self::IntegerLiteral(integer_literal) => integer_literal.string(),
         }
     }
 }

@@ -3,7 +3,8 @@
 // SPDX-License-Identifier: MIT
 
 use crate::ast::{
-    Expression, ExpressionStatement, Identifier, LetStatement, Program, ReturnStatement, Statement,
+    Expression, ExpressionStatement, Identifier, IntegerLiteral, LetStatement, Program,
+    ReturnStatement, Statement,
 };
 use crate::lexer::Lexer;
 use crate::parser::Precedence::Lowest;
@@ -47,6 +48,7 @@ impl<'a> Parser<'a> {
         };
 
         parser.register_prefix(TokenType::Ident, Parser::parse_identifier);
+        parser.register_prefix(TokenType::Int, Parser::parse_integer_literal);
 
         parser.next_token();
         parser.next_token();
@@ -172,6 +174,18 @@ impl<'a> Parser<'a> {
         }))
     }
 
+    fn parse_integer_literal(&mut self) -> Option<Expression> {
+        let token = self.current_token.clone()?;
+
+        let Ok(value) = token.literal.parse::<i64>() else {
+            self.errors
+                .push(format!("could not parse {}", token.literal));
+            return None;
+        };
+
+        Some(Expression::IntegerLiteral(IntegerLiteral { token, value }))
+    }
+
     fn parse_expression(&mut self, precedence: &Precedence) -> Option<Expression> {
         let token = self.current_token.clone()?;
         let prefix = self.prefix_parse_fns.get(&token.token_type);
@@ -257,14 +271,14 @@ return 993322;";
 
         for statement in &program.statements {
             if let Statement::Return(return_stmt) = statement {
-                if return_stmt.token_literal() != "return" {
-                    eprintln!(
-                        "returnStmt.TokenLiteral not 'return' got {}",
-                        return_stmt.token_literal()
-                    );
-                }
+                assert_eq!(
+                    return_stmt.token_literal(),
+                    "return",
+                    "returnStmt.TokenLiteral not 'return' got {}",
+                    return_stmt.token_literal()
+                );
             } else {
-                eprintln!("stmt ot ReturnStatement");
+                panic!("stmt ot ReturnStatement");
             }
         }
     }
@@ -286,21 +300,58 @@ return 993322;";
                 match expression {
                     Expression::Identifier(ident) => {
                         let value = &ident.value;
-                        if value != "foobar" {
-                            eprintln!("ident value not foobar, got {value}");
-                        }
+                        assert_eq!(value, "foobar", "ident value not foobar, got {value}");
 
                         let token_literal = ident.token_literal();
-                        if token_literal != "foobar" {
-                            eprintln!("ident token_literal not foobar, got {token_literal}");
-                        }
+                        assert_eq!(
+                            token_literal, "foobar",
+                            "ident token_literal not foobar, got {token_literal}"
+                        );
                     }
+                    Expression::IntegerLiteral(_) => panic!("Expression is not Identifier"),
                 }
             } else {
-                eprintln!("express is not some");
+                panic!("expression is not some");
             }
         } else {
-            eprintln!("program.statements[0] is not ExpressionStatement");
+            panic!("program.statements[0] is not ExpressionStatement");
+        }
+    }
+
+    #[test]
+    fn test_integer_literal_expression() {
+        let input = "5;";
+
+        let mut lexer = Lexer::new(input);
+        let mut parser = Parser::new(&mut lexer);
+        let program = (parser).parse_program();
+
+        check_parser_errors(&parser);
+
+        dbg!(&program.statements);
+
+        assert_eq!(program.statements.len(), 1);
+
+        if let Statement::Expression(statement) = &program.statements[0] {
+            if let Some(expression) = &statement.expression {
+                match expression {
+                    Expression::IntegerLiteral(integer_literal) => {
+                        let value = &integer_literal.value;
+                        assert_eq!(*value, 5, "literal value  not 5 got {value}");
+
+                        let token_literal = integer_literal.token_literal();
+                        assert_eq!(
+                            token_literal, "5",
+                            "token literal is not '5' got {token_literal}"
+                        );
+                    }
+                    Expression::Identifier(_) => panic!("Expression is not Integer literal"),
+                }
+            } else {
+                panic!("expression is not some");
+            }
+        } else {
+            panic!("program.statements[0] is not ExpressionStatement");
         }
     }
 
@@ -324,6 +375,7 @@ return 993322;";
                     }
                     true
                 }
+                Expression::IntegerLiteral(_) => false,
             },
             _ => false,
         }
