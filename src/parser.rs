@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: MIT
 
 use crate::ast::{
-    Expression, ExpressionStatement, Identifier, IntegerLiteral, LetStatement, Program,
-    ReturnStatement, Statement,
+    Expression, ExpressionStatement, Identifier, IntegerLiteral, LetStatement, PrefixExpression,
+    Program, ReturnStatement, Statement,
 };
 use crate::lexer::Lexer;
 use crate::parser::Precedence::Lowest;
@@ -49,6 +49,8 @@ impl<'a> Parser<'a> {
 
         parser.register_prefix(TokenType::Ident, Parser::parse_identifier);
         parser.register_prefix(TokenType::Int, Parser::parse_integer_literal);
+        parser.register_prefix(TokenType::Bang, Parser::parse_prefix_expression);
+        parser.register_prefix(TokenType::Minus, Parser::parse_prefix_expression);
 
         parser.next_token();
         parser.next_token();
@@ -186,6 +188,11 @@ impl<'a> Parser<'a> {
         Some(Expression::IntegerLiteral(IntegerLiteral { token, value }))
     }
 
+    fn no_prefix_parse_fn_error(&mut self, token_type: &TokenType) {
+        self.errors
+            .push(format!("no prefix parse function for {token_type} found"));
+    }
+
     fn parse_expression(&mut self, precedence: &Precedence) -> Option<Expression> {
         let token = self.current_token.clone()?;
         let prefix = self.prefix_parse_fns.get(&token.token_type);
@@ -193,6 +200,7 @@ impl<'a> Parser<'a> {
             let left_exp = prefix_fn(self);
             return left_exp;
         }
+        self.no_prefix_parse_fn_error(&token.token_type);
         None
     }
 
@@ -202,6 +210,21 @@ impl<'a> Parser<'a> {
             token: token.clone(),
             value: token.literal,
         }))
+    }
+
+    fn parse_prefix_expression(&mut self) -> Option<Expression> {
+        let token = self.current_token.clone()?;
+        let operator = token.literal.clone();
+
+        self.next_token();
+
+        let right = self.parse_expression(&Precedence::Prefix)?;
+
+        Some(Expression::Prefix(Box::from(PrefixExpression {
+            token,
+            operator,
+            right: Box::new(right),
+        })))
     }
 
     fn cur_token_is(&self, token_type: &TokenType) -> bool {
@@ -308,7 +331,7 @@ return 993322;";
                             "ident token_literal not foobar, got {token_literal}"
                         );
                     }
-                    Expression::IntegerLiteral(_) => panic!("Expression is not Identifier"),
+                    _ => panic!("Expression is not Identifier"),
                 }
             } else {
                 panic!("expression is not some");
@@ -345,13 +368,46 @@ return 993322;";
                             "token literal is not '5' got {token_literal}"
                         );
                     }
-                    Expression::Identifier(_) => panic!("Expression is not Integer literal"),
+                    _ => panic!("Expression is not Integer literal"),
                 }
             } else {
                 panic!("expression is not some");
             }
         } else {
             panic!("program.statements[0] is not ExpressionStatement");
+        }
+    }
+
+    #[test]
+    fn test_parsing_prefix_expressions() {
+        let tests = [("!5;", "!", 5), ("-15;", "-", 15)];
+
+        for (i, test_case) in tests.iter().enumerate() {
+            let mut lexer = Lexer::new(test_case.0);
+            let mut parser = Parser::new(&mut lexer);
+
+            let program = parser.parse_program();
+            check_parser_errors(&parser);
+
+            assert_eq!(program.statements.len(), 1);
+
+            if let Statement::Expression(statement) = &program.statements[0] {
+                if let Some(expression) = &statement.expression {
+                    match expression {
+                        Expression::Prefix(expression) => {
+                            let operator = &expression.operator;
+                            assert_eq!(operator, test_case.1);
+
+                            assert!(test_integer_literal(&expression.right, test_case.2));
+                        }
+                        _ => panic!("Expression is not prefix expression"),
+                    }
+                } else {
+                    panic!("expression is not some");
+                }
+            } else {
+                panic!("program.statements[0] is not ExpressionStatement");
+            }
         }
     }
 
@@ -375,8 +431,29 @@ return 993322;";
                     }
                     true
                 }
-                Expression::IntegerLiteral(_) => false,
+                _ => false,
             },
+            _ => false,
+        }
+    }
+
+    fn test_integer_literal(integer_literal: &Expression, value: i64) -> bool {
+        match integer_literal {
+            Expression::IntegerLiteral(integer) => {
+                if integer.value != value {
+                    eprintln!("integer.value not {value}, got {}", integer.value);
+                    return false;
+                }
+
+                if integer.token_literal() != value.to_string() {
+                    eprintln!(
+                        "integer.token_literal not {value}, got {}",
+                        integer.token_literal()
+                    );
+                    return false;
+                }
+                true
+            }
             _ => false,
         }
     }

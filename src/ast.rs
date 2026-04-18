@@ -140,22 +140,42 @@ impl Node for IntegerLiteral {
 }
 
 #[derive(Debug, Clone)]
+pub struct PrefixExpression {
+    pub token: Token,
+    pub operator: String,
+    pub right: Box<Expression>,
+}
+
+impl Node for PrefixExpression {
+    fn token_literal(&self) -> String {
+        self.token.literal.clone()
+    }
+
+    fn string(&self) -> String {
+        format!("({}{})", self.operator, self.right.string())
+    }
+}
+
+#[derive(Debug, Clone)]
 pub enum Expression {
     Identifier(Identifier),
     IntegerLiteral(IntegerLiteral),
+    Prefix(Box<PrefixExpression>),
 }
 
 impl Node for Expression {
     fn token_literal(&self) -> String {
         match self {
             Self::Identifier(identifier) => identifier.token_literal(),
-            Self::IntegerLiteral(intger_literal) => intger_literal.token_literal(),
+            Self::IntegerLiteral(integer_literal) => integer_literal.token_literal(),
+            Self::Prefix(prefix_expression) => prefix_expression.token_literal(),
         }
     }
     fn string(&self) -> String {
         match self {
             Self::Identifier(identifier) => identifier.string(),
             Self::IntegerLiteral(integer_literal) => integer_literal.string(),
+            Self::Prefix(prefix_expression) => prefix_expression.string(),
         }
     }
 }
