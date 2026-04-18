@@ -451,7 +451,7 @@ return 993322;";
     fn test_parsing_prefix_expressions() {
         let tests = [("!5;", "!", 5), ("-15;", "-", 15)];
 
-        for (i, test_case) in tests.iter().enumerate() {
+        for test_case in tests {
             let mut lexer = Lexer::new(test_case.0);
             let mut parser = Parser::new(&mut lexer);
 
