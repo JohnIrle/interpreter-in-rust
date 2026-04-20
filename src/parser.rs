@@ -3,9 +3,9 @@
 // SPDX-License-Identifier: MIT
 
 use crate::ast::{
-    BlockStatement, Boolean, Expression, ExpressionStatement, FunctionLiteral, Identifier,
-    IfExpression, InfixExpression, IntegerLiteral, LetStatement, PrefixExpression, Program,
-    ReturnStatement, Statement,
+    BlockStatement, Boolean, CallExpression, Expression, ExpressionStatement, FunctionLiteral,
+    Identifier, IfExpression, InfixExpression, IntegerLiteral, LetStatement, PrefixExpression,
+    Program, ReturnStatement, Statement,
 };
 use crate::lexer::Lexer;
 use crate::parser::Precedence::Lowest;
@@ -33,6 +33,7 @@ const fn precedences(token_type: &TokenType) -> Option<Precedence> {
         TokenType::Lt | TokenType::Gt => Some(Precedence::LessGreater),
         TokenType::Plus | TokenType::Minus => Some(Precedence::Sum),
         TokenType::Slash | TokenType::Asterisk => Some(Precedence::Product),
+        TokenType::LParen => Some(Precedence::Call),
         _ => None,
     }
 }
@@ -75,6 +76,7 @@ impl<'a> Parser<'a> {
         parser.register_prefix(TokenType::LParen, Parser::parse_grouped_expression);
         parser.register_prefix(TokenType::If, Parser::parse_if_expression);
         parser.register_prefix(TokenType::Function, Parser::parse_function_literal);
+        parser.register_infix(TokenType::LParen, Parser::parse_call_expression);
 
         parser.next_token();
         parser.next_token();
@@ -424,6 +426,50 @@ impl<'a> Parser<'a> {
         identifiers
     }
 
+    fn parse_call_expression(&mut self, function: Expression) -> Option<Expression> {
+        let token = self.current_token.clone()?;
+
+        let arguments = self.parse_call_arguments();
+
+        Some(Expression::Call(CallExpression {
+            token,
+            function: Box::from(function),
+            arguments,
+        }))
+    }
+
+    fn parse_call_arguments(&mut self) -> Vec<Expression> {
+        let mut args = Vec::new();
+
+        if self.peek_token_is(&TokenType::RParen) {
+            self.next_token();
+            return args;
+        }
+
+        self.next_token();
+
+        let Some(expression) = self.parse_expression(&Lowest) else {
+            return args;
+        };
+        args.push(expression);
+
+        while self.peek_token_is(&TokenType::Comma) {
+            self.next_token();
+            self.next_token();
+
+            let Some(expression) = self.parse_expression(&Lowest) else {
+                return args;
+            };
+            args.push(expression);
+        }
+
+        if !self.expect_peek(&TokenType::RParen) {
+            return Vec::new();
+        }
+
+        args
+    }
+
     fn cur_token_is(&self, token_type: &TokenType) -> bool {
         self.current_token
             .as_ref()
@@ -710,6 +756,15 @@ return 993322;";
             ("2 / (5 + 5)", "(2 / (5 + 5))"),
             ("-(5 + 5)", "(-(5 + 5))"),
             ("!(true == true)", "(!(true == true))"),
+            ("a + add(b * c) + d", "((a + add((b * c))) + d)"),
+            (
+                "add(a, b, 1, 2 * 3, 4 + 5, add(6, 7 * 8))",
+                "add(a, b, 1, (2 * 3), (4 + 5), add(6, (7 * 8)))",
+            ),
+            (
+                "add(a + b + c * d / f + g)",
+                "add((((a + b) + ((c * d) / f)) + g))",
+            ),
         ];
 
         for (input, expected) in &tests {
@@ -988,6 +1043,54 @@ return 993322;";
                 test_literal_expression(&function.parameters[i], &Expected::from(*ident));
             }
         }
+    }
+
+    #[test]
+    fn test_call_expression_parsing() {
+        let input = "add(1, 2 * 3, 4 + 5);";
+
+        let mut lexer = Lexer::new(input);
+        let mut parser = Parser::new(&mut lexer);
+        let program = parser.parse_program();
+        check_parser_errors(&parser);
+
+        assert_eq!(
+            program.statements.len(),
+            1,
+            "program.statements does not contain 1 statements, got={}",
+            program.statements.len()
+        );
+
+        let Statement::Expression(statement) = &program.statements[0] else {
+            panic!("stmt is not ExpressionStatement");
+        };
+
+        let Some(Expression::Call(call_expression)) = statement.expression.as_deref() else {
+            panic!("statement.expression is not CallExpression")
+        };
+
+        test_identifier(&call_expression.function, "add");
+
+        assert_eq!(
+            call_expression.arguments.len(),
+            3,
+            "wrong length of arguments. got={}",
+            call_expression.arguments.len()
+        );
+
+        test_literal_expression(&call_expression.arguments[0], &Expected::from(1));
+
+        let Expression::Infix(infix) = &call_expression.arguments[1] else {
+            panic!("call_expression.arguements[1] is not InfixExpression")
+        };
+
+        test_infix_expression(infix, &Expected::from(2), "*", &Expected::from(3));
+
+        let Expression::Infix(infix) = &call_expression.arguments[2] else {
+            panic!("call_expression.arguements[2] is not InfixExpression")
+        };
+
+        test_infix_expression(infix, &Expected::from(4), "+", &Expected::from(5));
     }
 
     fn test_let_statement(statement: &Statement, name: &str) {
