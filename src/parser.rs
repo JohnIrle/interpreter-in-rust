@@ -452,16 +452,15 @@ return 993322;";
         assert_eq!(program.statements.len(), 3);
 
         for statement in &program.statements {
-            if let Statement::Return(return_stmt) = statement {
-                assert_eq!(
-                    return_stmt.token_literal(),
-                    "return",
-                    "returnStmt.TokenLiteral not 'return' got {}",
-                    return_stmt.token_literal()
-                );
-            } else {
+            let Statement::Return(return_stmt) = statement else {
                 panic!("stmt not ReturnStatement");
-            }
+            };
+            assert_eq!(
+                return_stmt.token_literal(),
+                "return",
+                "returnStmt.TokenLiteral not 'return' got {}",
+                return_stmt.token_literal()
+            );
         }
     }
 
@@ -477,27 +476,26 @@ return 993322;";
 
         assert_eq!(program.statements.len(), 1);
 
-        if let Statement::Expression(statement) = &program.statements[0] {
-            if let Some(expression) = &statement.expression {
-                match expression.as_ref() {
-                    Expression::Identifier(ident) => {
-                        let value = &ident.value;
-                        assert_eq!(value, "foobar", "ident value not foobar, got {value}");
-
-                        let token_literal = ident.token_literal();
-                        assert_eq!(
-                            token_literal, "foobar",
-                            "ident token_literal not foobar, got {token_literal}"
-                        );
-                    }
-                    _ => panic!("Expression is not Identifier"),
-                }
-            } else {
-                panic!("expression is not some");
-            }
-        } else {
+        let Statement::Expression(statement) = &program.statements[0] else {
             panic!("program.statements[0] is not ExpressionStatement");
-        }
+        };
+
+        let Some(expression) = &statement.expression else {
+            panic!("expression is None");
+        };
+
+        let Expression::Identifier(ident) = expression.as_ref() else {
+            panic!("Expression is not Identifier");
+        };
+
+        let value = &ident.value;
+        assert_eq!(value, "foobar", "ident value not foobar, got {value}");
+
+        let token_literal = ident.token_literal();
+        assert_eq!(
+            token_literal, "foobar",
+            "ident token_literal not foobar, got {token_literal}"
+        );
     }
 
     #[test]
@@ -512,27 +510,26 @@ return 993322;";
 
         assert_eq!(program.statements.len(), 1);
 
-        if let Statement::Expression(statement) = &program.statements[0] {
-            if let Some(expression) = &statement.expression {
-                match expression.as_ref() {
-                    Expression::IntegerLiteral(integer_literal) => {
-                        let value = &integer_literal.value;
-                        assert_eq!(*value, 5, "literal value  not 5 got {value}");
-
-                        let token_literal = integer_literal.token_literal();
-                        assert_eq!(
-                            token_literal, "5",
-                            "token literal is not '5' got {token_literal}"
-                        );
-                    }
-                    _ => panic!("Expression is not Integer literal"),
-                }
-            } else {
-                panic!("expression is not some");
-            }
-        } else {
+        let Statement::Expression(statement) = &program.statements[0] else {
             panic!("program.statements[0] is not ExpressionStatement");
-        }
+        };
+
+        let Some(expression) = &statement.expression else {
+            panic!("expression is None");
+        };
+
+        let Expression::IntegerLiteral(integer_literal) = expression.as_ref() else {
+            panic!("Expression is not Integer literal");
+        };
+
+        let value = &integer_literal.value;
+        assert_eq!(*value, 5, "literal value  not 5 got {value}");
+
+        let token_literal = integer_literal.token_literal();
+        assert_eq!(
+            token_literal, "5",
+            "token literal is not '5' got {token_literal}"
+        );
     }
 
     #[test]
@@ -553,23 +550,22 @@ return 993322;";
 
             assert_eq!(program.statements.len(), 1);
 
-            if let Statement::Expression(statement) = &program.statements[0] {
-                if let Some(expression) = &statement.expression {
-                    match expression.as_ref() {
-                        Expression::Prefix(expression) => {
-                            let exp_operator = &expression.operator;
-                            assert_eq!(exp_operator, expected_operator);
-
-                            test_literal_expression(&expression.right, &expected_value);
-                        }
-                        _ => panic!("Expression is not prefix expression"),
-                    }
-                } else {
-                    panic!("expression is not some");
-                }
-            } else {
+            let Statement::Expression(statement) = &program.statements[0] else {
                 panic!("program.statements[0] is not ExpressionStatement");
-            }
+            };
+
+            let Some(expression) = &statement.expression else {
+                panic!("expression is None");
+            };
+
+            let Expression::Prefix(expression) = expression.as_ref() else {
+                panic!("Expression is not prefix expression");
+            };
+
+            let exp_operator = &expression.operator;
+            assert_eq!(exp_operator, expected_operator);
+
+            test_literal_expression(&expression.right, &expected_value);
         }
     }
 
@@ -601,25 +597,24 @@ return 993322;";
 
             assert_eq!(program.statements.len(), 1);
 
-            if let Statement::Expression(statement) = &program.statements[0] {
-                if let Some(expression) = &statement.expression {
-                    match expression.as_ref() {
-                        Expression::Infix(expression) => {
-                            test_infix_expression(
-                                expression,
-                                expected_left_value,
-                                expected_operator,
-                                expected_right_value,
-                            );
-                        }
-                        _ => panic!("Expression is not infix expression"),
-                    }
-                } else {
-                    panic!("expression is not some");
-                }
-            } else {
+            let Statement::Expression(statement) = &program.statements[0] else {
                 panic!("program.statements[0] is not ExpressionStatement");
-            }
+            };
+
+            let Some(expression) = &statement.expression else {
+                panic!("expression is None");
+            };
+
+            let Expression::Infix(expression) = expression.as_ref() else {
+                panic!("Expression is not infix expression");
+            };
+
+            test_infix_expression(
+                expression,
+                expected_left_value,
+                expected_operator,
+                expected_right_value,
+            );
         }
     }
 
@@ -680,23 +675,22 @@ return 993322;";
                 "program does not have 1 statement"
             );
 
-            if let Statement::Expression(statement) = &program.statements[0] {
-                if let Some(expression) = &statement.expression {
-                    match expression.as_ref() {
-                        Expression::Boolean(expression) => {
-                            assert_eq!(
-                                expression.value, *expected,
-                                "boolean value does not match expected"
-                            );
-                        }
-                        _ => panic!("Expression is not boolean expression"),
-                    }
-                } else {
-                    panic!("expression is not some");
-                }
-            } else {
+            let Statement::Expression(statement) = &program.statements[0] else {
                 panic!("program.statements[0] is not ExpressionStatement");
-            }
+            };
+
+            let Some(expression) = &statement.expression else {
+                panic!("expression is None");
+            };
+
+            let Expression::Boolean(expression) = expression.as_ref() else {
+                panic!("Expression is not boolean expression");
+            };
+
+            assert_eq!(
+                expression.value, *expected,
+                "boolean value does not match expected"
+            );
         }
     }
 
