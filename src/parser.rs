@@ -71,6 +71,7 @@ impl<'a> Parser<'a> {
         parser.register_infix(TokenType::Gt, Parser::parse_infix_expression);
         parser.register_prefix(TokenType::True, Parser::parse_boolean);
         parser.register_prefix(TokenType::False, Parser::parse_boolean);
+        parser.register_prefix(TokenType::LParen, Parser::parse_grouped_expression);
 
         parser.next_token();
         parser.next_token();
@@ -214,6 +215,18 @@ impl<'a> Parser<'a> {
             token,
             value: self.cur_token_is(&TokenType::True),
         }))
+    }
+
+    fn parse_grouped_expression(&mut self) -> Option<Expression> {
+        self.next_token();
+
+        let expression = self.parse_expression(&Lowest);
+
+        if !self.expect_peek(&TokenType::RParen) {
+            return None;
+        }
+
+        expression
     }
 
     fn no_prefix_parse_fn_error(&mut self, token_type: &TokenType) {
@@ -572,6 +585,11 @@ return 993322;";
                 "3 + 4 * 5 == 3 * 1 + 4 * 5",
                 "((3 + (4 * 5)) == ((3 * 1) + (4 * 5)))",
             ),
+            ("1 + (2 + 3) + 4", "((1 + (2 + 3)) + 4)"),
+            ("(5 + 5) * 2", "((5 + 5) * 2)"),
+            ("2 / (5 + 5)", "(2 / (5 + 5))"),
+            ("-(5 + 5)", "(-(5 + 5))"),
+            ("!(true == true)", "(!(true == true))"),
         ];
 
         for (input, expected) in &tests {
