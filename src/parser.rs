@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: MIT
 
 use crate::ast::{
-    Expression, ExpressionStatement, Identifier, InfixExpression, IntegerLiteral, LetStatement,
-    PrefixExpression, Program, ReturnStatement, Statement,
+    Boolean, Expression, ExpressionStatement, Identifier, InfixExpression, IntegerLiteral,
+    LetStatement, PrefixExpression, Program, ReturnStatement, Statement,
 };
 use crate::lexer::Lexer;
 use crate::parser::Precedence::Lowest;
@@ -69,6 +69,8 @@ impl<'a> Parser<'a> {
         parser.register_infix(TokenType::NotEq, Parser::parse_infix_expression);
         parser.register_infix(TokenType::Lt, Parser::parse_infix_expression);
         parser.register_infix(TokenType::Gt, Parser::parse_infix_expression);
+        parser.register_prefix(TokenType::True, Parser::parse_boolean);
+        parser.register_prefix(TokenType::False, Parser::parse_boolean);
 
         parser.next_token();
         parser.next_token();
@@ -206,6 +208,14 @@ impl<'a> Parser<'a> {
         Some(Expression::IntegerLiteral(IntegerLiteral { token, value }))
     }
 
+    fn parse_boolean(&mut self) -> Option<Expression> {
+        let token = self.current_token.clone()?;
+        Some(Expression::Boolean(Boolean {
+            token,
+            value: self.cur_token_is(&TokenType::True),
+        }))
+    }
+
     fn no_prefix_parse_fn_error(&mut self, token_type: &TokenType) {
         self.errors
             .push(format!("no prefix parse function for {token_type} found"));
@@ -327,22 +337,29 @@ mod tests {
     #[test]
     fn test_let_statements() {
         let tests = [
-            ("let x = 5;", "x", 5),
-            ("let y = 10;", "y", 10),
-            ("let foobar = 8383;", "foobar", 8383),
+            ("let x = 5;", "x", Expected::from(5)),
+            ("let y = true;", "y", Expected::from(true)),
+            ("let foobar = y;", "foobar", Expected::from("y")),
         ];
 
-        for (i, test_case) in tests.iter().enumerate() {
-            let mut lexer = Lexer::new(test_case.0);
+        for (input, expected_identifier, expected_value) in tests {
+            let mut lexer = Lexer::new(input);
             let mut parser = Parser::new(&mut lexer);
 
             let program = parser.parse_program();
             check_parser_errors(&parser);
+
             assert_eq!(program.statements.len(), 1);
 
-            let statement = &program.statements[i];
-            if !test_let_statement(statement, test_case.0) {
-                return;
+            let statement = &program.statements[0];
+            test_let_statement(statement, expected_identifier);
+
+            if let Statement::Let(let_statement) = statement {
+                if let Some(expression) = &let_statement.value {
+                    test_literal_expression(expression, &expected_value);
+                }
+            } else {
+                panic!("statement not let statement");
             }
         }
     }
@@ -370,7 +387,7 @@ return 993322;";
                     return_stmt.token_literal()
                 );
             } else {
-                panic!("stmt ot ReturnStatement");
+                panic!("stmt not ReturnStatement");
             }
         }
     }
@@ -420,8 +437,6 @@ return 993322;";
 
         check_parser_errors(&parser);
 
-        dbg!(&program.statements);
-
         assert_eq!(program.statements.len(), 1);
 
         if let Statement::Expression(statement) = &program.statements[0] {
@@ -449,10 +464,15 @@ return 993322;";
 
     #[test]
     fn test_parsing_prefix_expressions() {
-        let tests = [("!5;", "!", 5), ("-15;", "-", 15)];
+        let tests = [
+            ("!5;", "!", Expected::from(5)),
+            ("-15;", "-", Expected::from(15)),
+            ("!true;", "!", Expected::from(true)),
+            ("!false;", "!", Expected::from(false)),
+        ];
 
-        for test_case in tests {
-            let mut lexer = Lexer::new(test_case.0);
+        for (input, expected_operator, expected_value) in tests {
+            let mut lexer = Lexer::new(input);
             let mut parser = Parser::new(&mut lexer);
 
             let program = parser.parse_program();
@@ -464,10 +484,10 @@ return 993322;";
                 if let Some(expression) = &statement.expression {
                     match expression {
                         Expression::Prefix(expression) => {
-                            let operator = &expression.operator;
-                            assert_eq!(operator, test_case.1);
+                            let exp_operator = &expression.operator;
+                            assert_eq!(exp_operator, expected_operator);
 
-                            assert!(test_integer_literal(&expression.right, test_case.2));
+                            test_literal_expression(&expression.right, &expected_value);
                         }
                         _ => panic!("Expression is not prefix expression"),
                     }
@@ -483,18 +503,24 @@ return 993322;";
     #[test]
     fn test_parsing_infix_expressions() {
         let tests = [
-            ("5 + 5;", 5, "+", 5),
-            ("5 - 5;", 5, "-", 5),
-            ("5 * 5;", 5, "*", 5),
-            ("5 / 5;", 5, "/", 5),
-            ("5 > 5;", 5, ">", 5),
-            ("5 < 5;", 5, "<", 5),
-            ("5 == 5;", 5, "==", 5),
-            ("5 != 5;", 5, "!=", 5),
+            ("5 + 5;", Expected::from(5), "+", Expected::from(5)),
+            ("5 - 5;", Expected::from(5), "-", Expected::from(5)),
+            ("5 * 5;", Expected::from(5), "*", Expected::from(5)),
+            ("5 / 5;", Expected::from(5), "/", Expected::from(5)),
+            ("5 > 5;", Expected::from(5), ">", Expected::from(5)),
+            ("5 < 5;", Expected::from(5), "<", Expected::from(5)),
+            ("5 == 5;", Expected::from(5), "==", Expected::from(5)),
+            ("5 != 5;", Expected::from(5), "!=", Expected::from(5)),
+            (
+                "true == true",
+                Expected::from(true),
+                "==",
+                Expected::from(true),
+            ),
         ];
 
-        for test_case in &tests {
-            let mut lexer = Lexer::new(test_case.0);
+        for (input, expected_left_value, expected_operator, expected_right_value) in &tests {
+            let mut lexer = Lexer::new(input);
             let mut parser = Parser::new(&mut lexer);
 
             let program = parser.parse_program();
@@ -506,11 +532,12 @@ return 993322;";
                 if let Some(expression) = &statement.expression {
                     match expression {
                         Expression::Infix(expression) => {
-                            assert!(test_integer_literal(&expression.left, test_case.1));
-
-                            assert_eq!(expression.operator, test_case.2);
-
-                            assert!(test_integer_literal(&expression.right, test_case.3));
+                            test_infix_expression(
+                                expression,
+                                expected_left_value,
+                                expected_operator,
+                                expected_right_value,
+                            );
                         }
                         _ => panic!("Expression is not infix expression"),
                     }
@@ -526,6 +553,10 @@ return 993322;";
     #[test]
     fn test_operator_precedence_parsing() {
         let tests = [
+            ("true", "true"),
+            ("false", "false"),
+            ("3 > 5 == false", "((3 > 5) == false)"),
+            ("3 < 5 == true", "((3 < 5) == true)"),
             ("-a * b", "((-a) * b)"),
             ("!-a", "(!(-a))"),
             ("a + b + c", "((a + b) + c)"),
@@ -543,61 +574,167 @@ return 993322;";
             ),
         ];
 
-        for test_case in &tests {
-            let mut lexer = Lexer::new(test_case.0);
+        for (input, expected) in &tests {
+            let mut lexer = Lexer::new(input);
             let mut parser = Parser::new(&mut lexer);
 
             let program = parser.parse_program();
             check_parser_errors(&parser);
 
-            assert_eq!(program.string(), test_case.1);
+            assert_eq!(program.string(), *expected);
         }
     }
 
-    fn test_let_statement(statement: &Statement, name: &str) -> bool {
-        if statement.token_literal() != "let" {
-            eprintln!("token_literal not 'let. got={}", statement.token_literal());
-            return false;
+    #[test]
+    fn test_boolean_expression() {
+        let tests = [("true;", true), ("false;", false)];
+
+        for (input, expected) in &tests {
+            let mut lexer = Lexer::new(input);
+            let mut parser = Parser::new(&mut lexer);
+
+            let program = parser.parse_program();
+            check_parser_errors(&parser);
+
+            assert_eq!(
+                program.statements.len(),
+                1,
+                "program does not have 1 statement"
+            );
+
+            if let Statement::Expression(statement) = &program.statements[0] {
+                if let Some(expression) = &statement.expression {
+                    match expression {
+                        Expression::Boolean(expression) => {
+                            assert_eq!(
+                                expression.value, *expected,
+                                "boolean value does not match expected"
+                            );
+                        }
+                        _ => panic!("Expression is not boolean expression"),
+                    }
+                } else {
+                    panic!("expression is not some");
+                }
+            } else {
+                panic!("program.statements[0] is not ExpressionStatement");
+            }
         }
+    }
+
+    fn test_let_statement(statement: &Statement, name: &str) {
+        assert_eq!(
+            statement.token_literal(),
+            "let",
+            "token_literal not 'let. got={}",
+            statement.token_literal()
+        );
 
         match statement {
             Statement::Let(let_stmt) => match &let_stmt.name {
                 Expression::Identifier(ident) => {
-                    if ident.value != name {
-                        eprintln!("let_stmt.name.value not '{}. got={}", name, ident.value);
-                        return false;
-                    }
+                    assert_eq!(
+                        ident.value, name,
+                        "let_stmt.name.value not '{}. got={}",
+                        name, ident.value
+                    );
 
-                    if let_stmt.name.token_literal() != name {
-                        eprintln!("let_stmt.name not '{:#?}. got={:#?}", name, let_stmt.name);
-                        return false;
-                    }
-                    true
+                    assert_eq!(
+                        let_stmt.name.token_literal(),
+                        name,
+                        "let_stmt.name not '{:#?}. got={:#?}",
+                        name,
+                        let_stmt.name
+                    );
                 }
-                _ => false,
+                _ => panic!("let_stmt.name is not Identifier"),
             },
-            _ => false,
+            _ => panic!("statement is not Let"),
         }
     }
 
-    fn test_integer_literal(integer_literal: &Expression, value: i64) -> bool {
+    fn test_infix_expression(
+        infix_expression: &InfixExpression,
+        left: &Expected,
+        operator: &str,
+        right: &Expected,
+    ) {
+        test_literal_expression(&infix_expression.left, left);
+
+        assert_eq!(
+            infix_expression.operator, operator,
+            "expression operator is not {operator}, got {}",
+            infix_expression.operator
+        );
+
+        test_literal_expression(&infix_expression.right, right);
+    }
+
+    fn test_literal_expression(expression: &Expression, expected: &Expected) {
+        match expected {
+            Expected::Int(v) => test_integer_literal(expression, *v),
+            Expected::Str(v) => test_identifier(expression, v),
+            Expected::Boolean(v) => test_boolean_literal(expression, *v),
+        }
+    }
+
+    fn test_integer_literal(integer_literal: &Expression, value: i64) {
         match integer_literal {
             Expression::IntegerLiteral(integer) => {
-                if integer.value != value {
-                    eprintln!("integer.value not {value}, got {}", integer.value);
-                    return false;
-                }
+                assert_eq!(
+                    integer.value, value,
+                    "integer.value not {value}, got {}",
+                    integer.value
+                );
 
-                if integer.token_literal() != value.to_string() {
-                    eprintln!(
-                        "integer.token_literal not {value}, got {}",
-                        integer.token_literal()
-                    );
-                    return false;
-                }
-                true
+                assert_eq!(
+                    integer.token_literal(),
+                    value.to_string(),
+                    "integer.token_literal not {value}, got {}",
+                    integer.token_literal()
+                );
             }
-            _ => false,
+            _ => panic!("expression not Integer Literal"),
+        }
+    }
+
+    fn test_identifier(expression: &Expression, value: &str) {
+        match expression {
+            Expression::Identifier(identifier) => {
+                assert_eq!(
+                    identifier.value, value,
+                    "identifier value not {value}, got {}",
+                    identifier.value
+                );
+
+                assert_eq!(
+                    identifier.token_literal(),
+                    value,
+                    "identifier token literal not {value}, got {}",
+                    identifier.token_literal()
+                );
+            }
+            _ => panic!("expression not Identifier"),
+        }
+    }
+
+    fn test_boolean_literal(expression: &Expression, value: bool) {
+        match expression {
+            Expression::Boolean(boolean) => {
+                assert_eq!(
+                    boolean.value, value,
+                    "boolean value not {value}, got {}",
+                    boolean.value
+                );
+
+                assert_eq!(
+                    boolean.token_literal(),
+                    value.to_string(),
+                    "identifier token literal not {value}, got {}",
+                    boolean.token_literal()
+                );
+            }
+            _ => panic!("expression not Boolean"),
         }
     }
 
@@ -614,5 +751,29 @@ return 993322;";
         }
 
         panic!()
+    }
+
+    pub enum Expected<'a> {
+        Int(i64),
+        Str(&'a str),
+        Boolean(bool),
+    }
+
+    impl From<i64> for Expected<'_> {
+        fn from(value: i64) -> Self {
+            Expected::Int(value)
+        }
+    }
+
+    impl<'a> From<&'a str> for Expected<'a> {
+        fn from(value: &'a str) -> Self {
+            Expected::Str(value)
+        }
+    }
+
+    impl From<bool> for Expected<'_> {
+        fn from(value: bool) -> Self {
+            Expected::Boolean(value)
+        }
     }
 }

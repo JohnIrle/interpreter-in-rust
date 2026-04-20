@@ -180,11 +180,28 @@ impl Node for InfixExpression {
 }
 
 #[derive(Debug, Clone)]
+pub struct Boolean {
+    pub token: Token,
+    pub value: bool,
+}
+
+impl Node for Boolean {
+    fn token_literal(&self) -> String {
+        self.token.literal.clone()
+    }
+
+    fn string(&self) -> String {
+        self.token.literal.clone()
+    }
+}
+
+#[derive(Debug, Clone)]
 pub enum Expression {
     Identifier(Identifier),
     IntegerLiteral(IntegerLiteral),
     Prefix(Box<PrefixExpression>),
     Infix(Box<InfixExpression>),
+    Boolean(Boolean),
 }
 
 impl Node for Expression {
@@ -194,6 +211,7 @@ impl Node for Expression {
             Self::IntegerLiteral(integer_literal) => integer_literal.token_literal(),
             Self::Prefix(prefix_expression) => prefix_expression.token_literal(),
             Self::Infix(infix_expression) => infix_expression.token_literal(),
+            Self::Boolean(boolean) => boolean.token_literal(),
         }
     }
     fn string(&self) -> String {
@@ -202,6 +220,7 @@ impl Node for Expression {
             Self::IntegerLiteral(integer_literal) => integer_literal.string(),
             Self::Prefix(prefix_expression) => prefix_expression.string(),
             Self::Infix(infix_expression) => infix_expression.string(),
+            Self::Boolean(boolean) => boolean.string(),
         }
     }
 }
