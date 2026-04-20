@@ -3,9 +3,9 @@
 // SPDX-License-Identifier: MIT
 
 use crate::ast::{
-    BlockStatement, Boolean, Expression, ExpressionStatement, Identifier, IfExpression,
-    InfixExpression, IntegerLiteral, LetStatement, PrefixExpression, Program, ReturnStatement,
-    Statement,
+    BlockStatement, Boolean, Expression, ExpressionStatement, FunctionLiteral, Identifier,
+    IfExpression, InfixExpression, IntegerLiteral, LetStatement, PrefixExpression, Program,
+    ReturnStatement, Statement,
 };
 use crate::lexer::Lexer;
 use crate::parser::Precedence::Lowest;
@@ -74,6 +74,7 @@ impl<'a> Parser<'a> {
         parser.register_prefix(TokenType::False, Parser::parse_boolean);
         parser.register_prefix(TokenType::LParen, Parser::parse_grouped_expression);
         parser.register_prefix(TokenType::If, Parser::parse_if_expression);
+        parser.register_prefix(TokenType::Function, Parser::parse_function_literal);
 
         parser.next_token();
         parser.next_token();
@@ -357,6 +358,70 @@ impl<'a> Parser<'a> {
         }
 
         Some(Statement::Block(BlockStatement { token, statements }))
+    }
+
+    fn parse_function_literal(&mut self) -> Option<Expression> {
+        let token = self.current_token.clone()?;
+        if !self.expect_peek(&TokenType::LParen) {
+            return None;
+        }
+
+        let parameters = self.parse_function_parameters();
+
+        if !self.expect_peek(&TokenType::LBrace) {
+            return None;
+        }
+
+        let body = self.parse_block_statement();
+
+        Some(Expression::FunctionLiteral(FunctionLiteral {
+            token,
+            parameters,
+            body,
+        }))
+    }
+
+    fn parse_function_parameters(&mut self) -> Vec<Expression> {
+        let mut identifiers = Vec::new();
+
+        if self.peek_token_is(&TokenType::RParen) {
+            self.next_token();
+            return identifiers;
+        }
+
+        self.next_token();
+
+        let Some(token) = self.current_token.clone() else {
+            return identifiers;
+        };
+
+        let ident = Expression::Identifier(Identifier {
+            token: token.clone(),
+            value: token.literal,
+        });
+        identifiers.push(ident);
+
+        while self.peek_token_is(&TokenType::Comma) {
+            self.next_token();
+            self.next_token();
+
+            let Some(token) = self.current_token.clone() else {
+                return identifiers;
+            };
+
+            let ident = Expression::Identifier(Identifier {
+                token: token.clone(),
+                value: token.literal,
+            });
+
+            identifiers.push(ident);
+        }
+
+        if !self.expect_peek(&TokenType::RParen) {
+            return Vec::new();
+        }
+
+        identifiers
     }
 
     fn cur_token_is(&self, token_type: &TokenType) -> bool {
@@ -823,6 +888,106 @@ return 993322;";
         };
 
         test_identifier(expr, "y");
+    }
+
+    #[test]
+    fn test_function_literal_parsing() {
+        let input = "fn(x, y) { x + y; }";
+
+        let mut lexer = Lexer::new(input);
+        let mut parser = Parser::new(&mut lexer);
+
+        let program = parser.parse_program();
+        check_parser_errors(&parser);
+
+        assert_eq!(
+            program.statements.len(),
+            1,
+            "program body does not contain 1 statements got={}",
+            program.statements.len()
+        );
+
+        let Statement::Expression(statement) = &program.statements[0] else {
+            panic!("program.statements[0] is not ExpressionStatement");
+        };
+
+        let Some(Expression::FunctionLiteral(function)) = &statement.expression.as_deref() else {
+            panic!("statement.expression is not FunctionLiteral");
+        };
+
+        assert_eq!(
+            function.parameters.len(),
+            2,
+            "function parameters wrong. want 2, got={}",
+            function.parameters.len()
+        );
+
+        test_literal_expression(&function.parameters[0], &Expected::from("x"));
+        test_literal_expression(&function.parameters[1], &Expected::from("y"));
+
+        let Some(Statement::Block(block_statement)) = &function.body else {
+            panic!("function.body not block statement");
+        };
+        assert_eq!(
+            block_statement.statements.len(),
+            1,
+            "function.body.statements length not 1 got={}",
+            block_statement.statements.len()
+        );
+
+        let Statement::Expression(expression_statement) = &block_statement.statements[0] else {
+            panic!("function body stmt is not ExpressionStatement");
+        };
+
+        let Some(Expression::Infix(infix_expression)) = expression_statement.expression.as_deref()
+        else {
+            panic!("expression statement not infix expression");
+        };
+
+        test_infix_expression(
+            infix_expression,
+            &Expected::from("x"),
+            "+",
+            &Expected::from("y"),
+        );
+    }
+
+    #[test]
+    fn test_function_parameter_parsing() {
+        let tests = [
+            ("fn() {};", Vec::new()),
+            ("fn(x) {};", vec!["x"]),
+            ("fn(x, y, z) {};", vec!["x", "y", "z"]),
+        ];
+
+        for (input, expectedParams) in &tests {
+            let mut lexer = Lexer::new(input);
+            let mut parser = Parser::new(&mut lexer);
+            let program = parser.parse_program();
+            check_parser_errors(&parser);
+
+            let Statement::Expression(expression_statement) = &program.statements[0] else {
+                panic!("program.statements[0] is not ExpressionStatement");
+            };
+
+            let Some(Expression::FunctionLiteral(function)) =
+                expression_statement.expression.as_deref()
+            else {
+                panic!("expression_statement.expression not FunctionLiteral");
+            };
+
+            assert_eq!(
+                function.parameters.len(),
+                expectedParams.len(),
+                "length parameters wrong. want {}, got={}",
+                expectedParams.len(),
+                function.parameters.len()
+            );
+
+            for (i, ident) in expectedParams.iter().enumerate() {
+                test_literal_expression(&function.parameters[i], &Expected::from(*ident));
+            }
+        }
     }
 
     fn test_let_statement(statement: &Statement, name: &str) {
