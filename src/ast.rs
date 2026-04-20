@@ -279,6 +279,31 @@ impl Node for FunctionLiteral {
 }
 
 #[derive(Debug, Clone)]
+pub struct CallExpression {
+    pub token: Token,
+    pub function: Box<Expression>,
+    pub arguments: Vec<Expression>,
+}
+
+impl Node for CallExpression {
+    fn token_literal(&self) -> String {
+        self.token.literal.clone()
+    }
+
+    fn string(&self) -> String {
+        let mut out = String::new();
+
+        let args: Vec<String> = self.arguments.iter().map(Node::string).collect();
+        out.push_str(&self.function.string());
+        out.push('(');
+        out.push_str(&args.join(", "));
+        out.push(')');
+
+        out
+    }
+}
+
+#[derive(Debug, Clone)]
 pub enum Expression {
     Identifier(Identifier),
     IntegerLiteral(IntegerLiteral),
@@ -287,6 +312,7 @@ pub enum Expression {
     Boolean(Boolean),
     If(IfExpression),
     FunctionLiteral(FunctionLiteral),
+    Call(CallExpression),
 }
 
 impl Node for Expression {
@@ -299,6 +325,7 @@ impl Node for Expression {
             Self::Boolean(boolean) => boolean.token_literal(),
             Self::If(if_expression) => if_expression.token_literal(),
             Self::FunctionLiteral(function_literal) => function_literal.token_literal(),
+            Self::Call(call_expression) => call_expression.token_literal(),
         }
     }
     fn string(&self) -> String {
@@ -310,6 +337,7 @@ impl Node for Expression {
             Self::Boolean(boolean) => boolean.string(),
             Self::If(if_expression) => if_expression.string(),
             Self::FunctionLiteral(function_literal) => function_literal.string(),
+            Self::Call(call_expression) => call_expression.string(),
         }
     }
 }
