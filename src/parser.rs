@@ -3,8 +3,9 @@
 // SPDX-License-Identifier: MIT
 
 use crate::ast::{
-    Boolean, Expression, ExpressionStatement, Identifier, InfixExpression, IntegerLiteral,
-    LetStatement, PrefixExpression, Program, ReturnStatement, Statement,
+    BlockStatement, Boolean, Expression, ExpressionStatement, Identifier, IfExpression,
+    InfixExpression, IntegerLiteral, LetStatement, PrefixExpression, Program, ReturnStatement,
+    Statement,
 };
 use crate::lexer::Lexer;
 use crate::parser::Precedence::Lowest;
@@ -72,6 +73,7 @@ impl<'a> Parser<'a> {
         parser.register_prefix(TokenType::True, Parser::parse_boolean);
         parser.register_prefix(TokenType::False, Parser::parse_boolean);
         parser.register_prefix(TokenType::LParen, Parser::parse_grouped_expression);
+        parser.register_prefix(TokenType::If, Parser::parse_if_expression);
 
         parser.next_token();
         parser.next_token();
@@ -161,8 +163,8 @@ impl<'a> Parser<'a> {
 
         Some(Statement::Let(LetStatement {
             token,
-            name: Expression::Identifier(name),
-            value,
+            name: Box::new(Expression::Identifier(name)),
+            value: value.map(Box::new),
         }))
     }
 
@@ -179,7 +181,7 @@ impl<'a> Parser<'a> {
 
         Some(Statement::Return(ReturnStatement {
             token,
-            return_value,
+            return_value: return_value.map(Box::new),
         }))
     }
 
@@ -193,7 +195,7 @@ impl<'a> Parser<'a> {
 
         Some(Statement::Expression(ExpressionStatement {
             token,
-            expression,
+            expression: expression.map(Box::new),
         }))
     }
 
@@ -297,6 +299,64 @@ impl<'a> Parser<'a> {
             left: Box::from(left),
             right: Box::from(right),
         })))
+    }
+
+    fn parse_if_expression(&mut self) -> Option<Expression> {
+        let token = self.current_token.clone()?;
+
+        if !self.expect_peek(&TokenType::LParen) {
+            return None;
+        }
+
+        self.next_token();
+        let condition = self.parse_expression(&Lowest)?;
+
+        if !self.expect_peek(&TokenType::RParen) {
+            return None;
+        }
+
+        if !self.expect_peek(&TokenType::LBrace) {
+            return None;
+        }
+
+        let consequence = self.parse_block_statement()?;
+
+        let alternative = if self.peek_token_is(&TokenType::Else) {
+            self.next_token();
+
+            if !self.expect_peek(&TokenType::LBrace) {
+                return None;
+            }
+
+            self.parse_block_statement()
+        } else {
+            None
+        };
+
+        Some(Expression::If(IfExpression {
+            token,
+            condition: Box::new(condition),
+            consequence,
+            alternative,
+        }))
+    }
+
+    fn parse_block_statement(&mut self) -> Option<Statement> {
+        let token = self.current_token.clone()?;
+        let mut statements = Vec::new();
+
+        self.next_token();
+
+        while !self.cur_token_is(&TokenType::RBrace) && !self.cur_token_is(&TokenType::Eof) {
+            let statement = self.parse_statement();
+            if let Some(statement) = statement {
+                statements.push(statement);
+            }
+
+            self.next_token();
+        }
+
+        Some(Statement::Block(BlockStatement { token, statements }))
     }
 
     fn cur_token_is(&self, token_type: &TokenType) -> bool {
@@ -419,7 +479,7 @@ return 993322;";
 
         if let Statement::Expression(statement) = &program.statements[0] {
             if let Some(expression) = &statement.expression {
-                match expression {
+                match expression.as_ref() {
                     Expression::Identifier(ident) => {
                         let value = &ident.value;
                         assert_eq!(value, "foobar", "ident value not foobar, got {value}");
@@ -454,7 +514,7 @@ return 993322;";
 
         if let Statement::Expression(statement) = &program.statements[0] {
             if let Some(expression) = &statement.expression {
-                match expression {
+                match expression.as_ref() {
                     Expression::IntegerLiteral(integer_literal) => {
                         let value = &integer_literal.value;
                         assert_eq!(*value, 5, "literal value  not 5 got {value}");
@@ -495,7 +555,7 @@ return 993322;";
 
             if let Statement::Expression(statement) = &program.statements[0] {
                 if let Some(expression) = &statement.expression {
-                    match expression {
+                    match expression.as_ref() {
                         Expression::Prefix(expression) => {
                             let exp_operator = &expression.operator;
                             assert_eq!(exp_operator, expected_operator);
@@ -543,7 +603,7 @@ return 993322;";
 
             if let Statement::Expression(statement) = &program.statements[0] {
                 if let Some(expression) = &statement.expression {
-                    match expression {
+                    match expression.as_ref() {
                         Expression::Infix(expression) => {
                             test_infix_expression(
                                 expression,
@@ -622,7 +682,7 @@ return 993322;";
 
             if let Statement::Expression(statement) = &program.statements[0] {
                 if let Some(expression) = &statement.expression {
-                    match expression {
+                    match expression.as_ref() {
                         Expression::Boolean(expression) => {
                             assert_eq!(
                                 expression.value, *expected,
@@ -640,6 +700,137 @@ return 993322;";
         }
     }
 
+    #[test]
+    fn test_if_expression() {
+        let input = "if (x < y) { x }";
+
+        let mut lexer = Lexer::new(input);
+        let mut parser = Parser::new(&mut lexer);
+        let program = parser.parse_program();
+        check_parser_errors(&parser);
+
+        assert_eq!(
+            program.statements.len(),
+            1,
+            "program does not have 1 statement"
+        );
+
+        let Statement::Expression(statement) = &program.statements[0] else {
+            panic!("program.statements[0] is not ExpressionStatement");
+        };
+
+        let Some(expression) = &statement.expression else {
+            panic!("expression is None");
+        };
+
+        let Expression::If(expression) = expression.as_ref() else {
+            panic!("expression is not IfExpression");
+        };
+
+        let Expression::Infix(condition) = expression.condition.as_ref() else {
+            panic!("condition is not InfixExpression");
+        };
+
+        test_infix_expression(condition, &Expected::from("x"), "<", &Expected::from("y"));
+
+        let Statement::Block(block) = &expression.consequence else {
+            panic!("consequence is not BlockStatement")
+        };
+
+        assert_eq!(
+            block.statements.len(),
+            1,
+            "consequence is not 1 statements. got {}",
+            block.statements.len()
+        );
+
+        let Statement::Expression(expr_stmt) = &block.statements[0] else {
+            panic!("block[0] is not ExpressionStatement");
+        };
+
+        let Some(expr) = &expr_stmt.expression else {
+            panic!("missing expression");
+        };
+
+        test_identifier(expr, "x");
+    }
+
+    #[test]
+    fn test_if_else_expression() {
+        let input = "if (x < y) { x } else { y }";
+
+        let mut lexer = Lexer::new(input);
+        let mut parser = Parser::new(&mut lexer);
+        let program = parser.parse_program();
+        check_parser_errors(&parser);
+
+        assert_eq!(
+            program.statements.len(),
+            1,
+            "program does not have 1 statement"
+        );
+
+        let Statement::Expression(statement) = &program.statements[0] else {
+            panic!("program.statements[0] is not ExpressionStatement");
+        };
+
+        let Some(expression) = &statement.expression else {
+            panic!("expression is None");
+        };
+
+        let Expression::If(expression) = expression.as_ref() else {
+            panic!("expression is not IfExpression");
+        };
+
+        let Expression::Infix(condition) = expression.condition.as_ref() else {
+            panic!("condition is not InfixExpression");
+        };
+
+        test_infix_expression(condition, &Expected::from("x"), "<", &Expected::from("y"));
+
+        let Statement::Block(block) = &expression.consequence else {
+            panic!("consequence is not BlockStatement")
+        };
+
+        assert_eq!(
+            block.statements.len(),
+            1,
+            "consequence is not 1 statements. got {}",
+            block.statements.len()
+        );
+
+        let Statement::Expression(expr_stmt) = &block.statements[0] else {
+            panic!("block[0] is not ExpressionStatement");
+        };
+
+        let Some(expr) = &expr_stmt.expression else {
+            panic!("missing expression");
+        };
+
+        test_identifier(expr, "x");
+
+        let Some(Statement::Block(block)) = &expression.alternative else {
+            panic!("consequence is not BlockStatement")
+        };
+
+        assert_eq!(
+            block.statements.len(),
+            1,
+            "consequence is not 1 statements. got {}",
+            block.statements.len()
+        );
+
+        let Statement::Expression(expr_stmt) = &block.statements[0] else {
+            panic!("block[0] is not ExpressionStatement");
+        };
+
+        let Some(expr) = &expr_stmt.expression else {
+            panic!("missing expression");
+        };
+
+        test_identifier(expr, "y");
+    }
+
     fn test_let_statement(statement: &Statement, name: &str) {
         assert_eq!(
             statement.token_literal(),
@@ -649,7 +840,7 @@ return 993322;";
         );
 
         match statement {
-            Statement::Let(let_stmt) => match &let_stmt.name {
+            Statement::Let(let_stmt) => match &let_stmt.name.as_ref() {
                 Expression::Identifier(ident) => {
                     assert_eq!(
                         ident.value, name,
