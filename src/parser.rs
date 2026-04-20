@@ -1015,7 +1015,7 @@ return 993322;";
             ("fn(x, y, z) {};", vec!["x", "y", "z"]),
         ];
 
-        for (input, expectedParams) in &tests {
+        for (input, expected_params) in &tests {
             let mut lexer = Lexer::new(input);
             let mut parser = Parser::new(&mut lexer);
             let program = parser.parse_program();
@@ -1033,13 +1033,13 @@ return 993322;";
 
             assert_eq!(
                 function.parameters.len(),
-                expectedParams.len(),
+                expected_params.len(),
                 "length parameters wrong. want {}, got={}",
-                expectedParams.len(),
+                expected_params.len(),
                 function.parameters.len()
             );
 
-            for (i, ident) in expectedParams.iter().enumerate() {
+            for (i, ident) in expected_params.iter().enumerate() {
                 test_literal_expression(&function.parameters[i], &Expected::from(*ident));
             }
         }
