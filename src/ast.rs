@@ -8,11 +8,11 @@ pub trait Node {
     fn string(&self) -> String;
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct LetStatement {
     pub token: Token,
-    pub name: Expression,
-    pub value: Option<Expression>,
+    pub name: Box<Expression>,
+    pub value: Option<Box<Expression>>,
 }
 
 impl Node for LetStatement {
@@ -40,7 +40,7 @@ impl Node for LetStatement {
 #[derive(Debug, Clone)]
 pub struct ReturnStatement {
     pub token: Token,
-    pub return_value: Option<Expression>,
+    pub return_value: Option<Box<Expression>>,
 }
 
 impl Node for ReturnStatement {
@@ -65,7 +65,7 @@ impl Node for ReturnStatement {
 #[derive(Debug, Clone)]
 pub struct ExpressionStatement {
     pub token: Token,
-    pub expression: Option<Expression>,
+    pub expression: Option<Box<Expression>>,
 }
 
 impl Node for ExpressionStatement {
@@ -82,11 +82,34 @@ impl Node for ExpressionStatement {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
+pub struct BlockStatement {
+    pub token: Token,
+    pub statements: Vec<Statement>,
+}
+
+impl Node for BlockStatement {
+    fn token_literal(&self) -> String {
+        self.token.literal.clone()
+    }
+
+    fn string(&self) -> String {
+        let mut out = String::new();
+
+        self.statements
+            .iter()
+            .for_each(|s| out.push_str(&s.string()));
+
+        out
+    }
+}
+
+#[derive(Debug, Clone)]
 pub enum Statement {
     Let(LetStatement),
     Return(ReturnStatement),
     Expression(ExpressionStatement),
+    Block(BlockStatement),
 }
 
 impl Node for Statement {
@@ -95,6 +118,7 @@ impl Node for Statement {
             Self::Let(s) => s.token_literal(),
             Self::Return(s) => s.token_literal(),
             Self::Expression(s) => s.token_literal(),
+            Self::Block(s) => s.token_literal(),
         }
     }
 
@@ -103,6 +127,7 @@ impl Node for Statement {
             Self::Let(s) => s.string(),
             Self::Return(s) => s.string(),
             Self::Expression(s) => s.string(),
+            Self::Block(s) => s.string(),
         }
     }
 }
@@ -196,12 +221,42 @@ impl Node for Boolean {
 }
 
 #[derive(Debug, Clone)]
+pub struct IfExpression {
+    pub token: Token,
+    pub condition: Box<Expression>,
+    pub consequence: Statement,
+    pub alternative: Option<Statement>,
+}
+
+impl Node for IfExpression {
+    fn token_literal(&self) -> String {
+        self.token.literal.clone()
+    }
+
+    fn string(&self) -> String {
+        let mut out = String::new();
+        out.push_str("if");
+        out.push_str(&self.condition.string());
+        out.push(' ');
+        out.push_str(&self.consequence.string());
+
+        if let Some(alternative) = &self.alternative {
+            out.push_str("else ");
+            out.push_str(&alternative.string());
+        }
+
+        out
+    }
+}
+
+#[derive(Debug, Clone)]
 pub enum Expression {
     Identifier(Identifier),
     IntegerLiteral(IntegerLiteral),
     Prefix(Box<PrefixExpression>),
     Infix(Box<InfixExpression>),
     Boolean(Boolean),
+    If(IfExpression),
 }
 
 impl Node for Expression {
@@ -212,6 +267,7 @@ impl Node for Expression {
             Self::Prefix(prefix_expression) => prefix_expression.token_literal(),
             Self::Infix(infix_expression) => infix_expression.token_literal(),
             Self::Boolean(boolean) => boolean.token_literal(),
+            Self::If(if_expression) => if_expression.token_literal(),
         }
     }
     fn string(&self) -> String {
@@ -221,6 +277,7 @@ impl Node for Expression {
             Self::Prefix(prefix_expression) => prefix_expression.string(),
             Self::Infix(infix_expression) => infix_expression.string(),
             Self::Boolean(boolean) => boolean.string(),
+            Self::If(if_expression) => if_expression.string(),
         }
     }
 }
@@ -252,14 +309,14 @@ mod tests {
         let program = Program {
             statements: vec![Statement::Let(LetStatement {
                 token: Token::new(TokenType::Let, "let".into()),
-                name: Expression::Identifier(Identifier {
+                name: Box::from(Expression::Identifier(Identifier {
                     token: Token::new(TokenType::Ident, "myVar".into()),
                     value: "myVar".to_string(),
-                }),
-                value: Some(Expression::Identifier(Identifier {
+                })),
+                value: Some(Box::from(Expression::Identifier(Identifier {
                     token: Token::new(TokenType::Ident, "anotherVar".into()),
                     value: "anotherVar".to_string(),
-                })),
+                }))),
             })],
         };
 
