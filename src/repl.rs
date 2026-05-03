@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: MIT
 
+use crate::evaluator;
 use crate::lexer::Lexer;
 use crate::parser::Parser;
 use std::io::{self, BufRead, BufReader, Read, Write};
@@ -34,7 +35,11 @@ pub fn start<R: Read, W: Write>(input: R, mut output: W) -> io::Result<()> {
             print_parser_errors(&mut output, parser.errors())?;
             continue;
         }
-        println!("{}", program.string());
+
+        let evaluated = evaluator::eval(&program);
+        if let Some(obj) = evaluated {
+            writeln!(output, "{}", obj.inspect())?;
+        }
     }
 
     Ok(())
