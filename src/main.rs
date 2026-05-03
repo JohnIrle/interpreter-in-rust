@@ -4,9 +4,11 @@
 
 mod ast;
 mod lexer;
+mod object;
 mod parser;
 mod repl;
 mod token;
+mod evaluator;
 
 fn main() -> std::io::Result<()> {
     println!("This is the Monkey programming language!");

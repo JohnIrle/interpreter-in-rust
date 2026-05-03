@@ -3,11 +3,6 @@
 // SPDX-License-Identifier: MIT
 use crate::token::Token;
 
-pub trait Node {
-    fn token_literal(&self) -> String;
-    fn string(&self) -> String;
-}
-
 #[derive(Debug, Clone)]
 pub struct LetStatement {
     pub token: Token,
@@ -15,7 +10,7 @@ pub struct LetStatement {
     pub value: Option<Box<Expression>>,
 }
 
-impl Node for LetStatement {
+impl LetStatement {
     fn token_literal(&self) -> String {
         self.token.literal.clone()
     }
@@ -43,8 +38,8 @@ pub struct ReturnStatement {
     pub return_value: Option<Box<Expression>>,
 }
 
-impl Node for ReturnStatement {
-    fn token_literal(&self) -> String {
+impl ReturnStatement {
+    pub(crate) fn token_literal(&self) -> String {
         self.token.literal.clone()
     }
 
@@ -68,7 +63,7 @@ pub struct ExpressionStatement {
     pub expression: Option<Box<Expression>>,
 }
 
-impl Node for ExpressionStatement {
+impl ExpressionStatement {
     fn token_literal(&self) -> String {
         self.token.literal.clone()
     }
@@ -88,19 +83,13 @@ pub struct BlockStatement {
     pub statements: Vec<Statement>,
 }
 
-impl Node for BlockStatement {
+impl BlockStatement {
     fn token_literal(&self) -> String {
         self.token.literal.clone()
     }
 
     fn string(&self) -> String {
-        let mut out = String::new();
-
-        self.statements
-            .iter()
-            .for_each(|s| out.push_str(&s.string()));
-
-        out
+        self.statements.iter().map(Statement::string).collect()
     }
 }
 
@@ -112,8 +101,8 @@ pub enum Statement {
     Block(BlockStatement),
 }
 
-impl Node for Statement {
-    fn token_literal(&self) -> String {
+impl Statement {
+    pub(crate) fn token_literal(&self) -> String {
         match self {
             Self::Let(s) => s.token_literal(),
             Self::Return(s) => s.token_literal(),
@@ -138,8 +127,8 @@ pub struct Identifier {
     pub value: String,
 }
 
-impl Node for Identifier {
-    fn token_literal(&self) -> String {
+impl Identifier {
+    pub(crate) fn token_literal(&self) -> String {
         self.token.literal.clone()
     }
 
@@ -154,8 +143,8 @@ pub struct IntegerLiteral {
     pub value: i64,
 }
 
-impl Node for IntegerLiteral {
-    fn token_literal(&self) -> String {
+impl IntegerLiteral {
+    pub(crate) fn token_literal(&self) -> String {
         self.token.literal.clone()
     }
 
@@ -171,7 +160,7 @@ pub struct PrefixExpression {
     pub right: Box<Expression>,
 }
 
-impl Node for PrefixExpression {
+impl PrefixExpression {
     fn token_literal(&self) -> String {
         self.token.literal.clone()
     }
@@ -189,7 +178,7 @@ pub struct InfixExpression {
     pub right: Box<Expression>,
 }
 
-impl Node for InfixExpression {
+impl InfixExpression {
     fn token_literal(&self) -> String {
         self.token.literal.clone()
     }
@@ -210,8 +199,8 @@ pub struct Boolean {
     pub value: bool,
 }
 
-impl Node for Boolean {
-    fn token_literal(&self) -> String {
+impl Boolean {
+    pub(crate) fn token_literal(&self) -> String {
         self.token.literal.clone()
     }
 
@@ -228,7 +217,7 @@ pub struct IfExpression {
     pub alternative: Option<Statement>,
 }
 
-impl Node for IfExpression {
+impl IfExpression {
     fn token_literal(&self) -> String {
         self.token.literal.clone()
     }
@@ -256,7 +245,7 @@ pub struct FunctionLiteral {
     pub(crate) body: Option<Statement>,
 }
 
-impl Node for FunctionLiteral {
+impl FunctionLiteral {
     fn token_literal(&self) -> String {
         self.token.literal.clone()
     }
@@ -264,7 +253,7 @@ impl Node for FunctionLiteral {
     fn string(&self) -> String {
         let mut out = String::new();
 
-        let params: Vec<String> = self.parameters.iter().map(Node::string).collect();
+        let params: Vec<String> = self.parameters.iter().map(Expression::string).collect();
 
         out.push_str(&self.token_literal());
         out.push('(');
@@ -285,7 +274,7 @@ pub struct CallExpression {
     pub arguments: Vec<Expression>,
 }
 
-impl Node for CallExpression {
+impl CallExpression {
     fn token_literal(&self) -> String {
         self.token.literal.clone()
     }
@@ -293,7 +282,7 @@ impl Node for CallExpression {
     fn string(&self) -> String {
         let mut out = String::new();
 
-        let args: Vec<String> = self.arguments.iter().map(Node::string).collect();
+        let args: Vec<String> = self.arguments.iter().map(Expression::string).collect();
         out.push_str(&self.function.string());
         out.push('(');
         out.push_str(&args.join(", "));
@@ -315,8 +304,8 @@ pub enum Expression {
     Call(CallExpression),
 }
 
-impl Node for Expression {
-    fn token_literal(&self) -> String {
+impl Expression {
+    pub(crate) fn token_literal(&self) -> String {
         match self {
             Self::Identifier(identifier) => identifier.token_literal(),
             Self::IntegerLiteral(integer_literal) => integer_literal.token_literal(),
@@ -346,7 +335,7 @@ pub struct Program {
     pub statements: Vec<Statement>,
 }
 
-impl Node for Program {
+impl Program {
     fn token_literal(&self) -> String {
         if !self.statements.is_empty() {
             return self.statements[0].token_literal();
@@ -354,8 +343,11 @@ impl Node for Program {
         String::new()
     }
 
-    fn string(&self) -> String {
-        self.statements.iter().map(Node::string).collect::<String>()
+    pub(crate) fn string(&self) -> String {
+        self.statements
+            .iter()
+            .map(Statement::string)
+            .collect::<String>()
     }
 }
 

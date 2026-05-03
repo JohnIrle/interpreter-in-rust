@@ -516,7 +516,7 @@ impl<'a> Parser<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ast::{Node, Statement};
+    use crate::ast::Statement;
 
     #[test]
     fn test_let_statements() {

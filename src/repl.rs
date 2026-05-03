@@ -2,7 +2,6 @@
 //
 // SPDX-License-Identifier: MIT
 
-use crate::ast::Node;
 use crate::lexer::Lexer;
 use crate::parser::Parser;
 use std::io::{self, BufRead, BufReader, Read, Write};
