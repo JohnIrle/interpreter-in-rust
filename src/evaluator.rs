@@ -5,6 +5,10 @@
 use crate::ast::{Expression, Program, Statement};
 use crate::object::Object;
 
+const TRUE: Object = Object::Boolean(true);
+const FALSE: Object = Object::Boolean(false);
+const NULL: Object = Object::Null;
+
 pub fn eval(program: &Program) -> Option<Object> {
     eval_program(program)
 }
@@ -29,11 +33,39 @@ fn eval_statement(statement: &Statement) -> Option<Object> {
     }
 }
 
-const fn eval_expression(expression: &Expression) -> Option<Object> {
+fn eval_expression(expression: &Expression) -> Option<Object> {
     match expression {
         Expression::IntegerLiteral(integer_literal) => Some(Object::Integer(integer_literal.value)),
-        Expression::Boolean(boolean) => Some(Object::Boolean(boolean.value)),
+        Expression::Boolean(boolean) => Some(if boolean.value { TRUE } else { FALSE }),
+        Expression::Prefix(expression) => {
+            let right = eval_expression(&expression.right);
+            Some(eval_prefix_expression(&expression.operator, right))
+        }
         _ => None,
+    }
+}
+
+fn eval_prefix_expression(operator: &str, right: Option<Object>) -> Object {
+    match operator {
+        "!" => eval_bang_operator_expression(right),
+        "-" => eval_minus_prefix_operator_expression(right),
+        _ => NULL,
+    }
+}
+
+const fn eval_bang_operator_expression(right: Option<Object>) -> Object {
+    match right {
+        Some(Object::Boolean(true)) => FALSE,
+        Some(Object::Boolean(false) | Object::Null) => TRUE,
+        #[allow(clippy::match_same_arms)]
+        _ => FALSE,
+    }
+}
+
+const fn eval_minus_prefix_operator_expression(right: Option<Object>) -> Object {
+    match right {
+        Some(Object::Integer(value)) => Object::Integer(-value),
+        _ => NULL,
     }
 }
 
@@ -46,7 +78,7 @@ mod tests {
 
     #[test]
     fn test_eval_integer_expression() {
-        let tests = [("5", 5), ("10", 10)];
+        let tests = [("5", 5), ("10", 10), ("-5", -5), ("-10", -10)];
 
         for (input, expected) in tests {
             let evaluated = test_eval(input);
@@ -64,6 +96,23 @@ mod tests {
         }
     }
 
+    #[test]
+    fn test_bang_operator() {
+        let tests = [
+            ("!true", false),
+            ("!false", true),
+            ("!5", false),
+            ("!!true", true),
+            ("!!false", false),
+            ("!!5", true),
+        ];
+
+        for (input, expected) in tests {
+            let evaluated = test_eval(input);
+            test_boolean_object(evaluated, expected);
+        }
+    }
+
     fn test_eval(input: &str) -> Option<Object> {
         let mut lexer = Lexer::new(input);
         let mut parser = Parser::new(&mut lexer);
@@ -73,24 +122,10 @@ mod tests {
     }
 
     fn test_integer_object(obj: Option<Object>, expected: i64) {
-        if let Some(obj) = obj {
-            match obj {
-                Object::Integer(value) => assert_eq!(value, expected),
-                _ => panic!("Object not Integer"),
-            }
-        } else {
-            panic!("Object is None")
-        }
+        assert_eq!(obj, Some(Object::Integer(expected)));
     }
 
     fn test_boolean_object(obj: Option<Object>, expected: bool) {
-        if let Some(obj) = obj {
-            match obj {
-                Object::Boolean(value) => assert_eq!(value, expected),
-                _ => panic!("Object is not boolean"),
-            }
-        } else {
-            panic!("Object is None")
-        }
+        assert_eq!(obj, Some(if expected { TRUE } else { FALSE }));
     }
 }

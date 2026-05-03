@@ -4,6 +4,7 @@
 
 type ObjectType = String;
 
+#[derive(PartialEq, Eq, Debug, Clone, Copy)]
 pub enum Object {
     Integer(i64),
     Boolean(bool),
