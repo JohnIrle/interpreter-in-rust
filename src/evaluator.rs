@@ -32,6 +32,7 @@ fn eval_statement(statement: &Statement) -> Option<Object> {
 const fn eval_expression(expression: &Expression) -> Option<Object> {
     match expression {
         Expression::IntegerLiteral(integer_literal) => Some(Object::Integer(integer_literal.value)),
+        Expression::Boolean(boolean) => Some(Object::Boolean(boolean.value)),
         _ => None,
     }
 }
@@ -53,6 +54,16 @@ mod tests {
         }
     }
 
+    #[test]
+    fn test_eval_boolean_expression() {
+        let tests = [("true", true), ("false", false)];
+
+        for (input, expected) in tests {
+            let evaluated = test_eval(input);
+            test_boolean_object(evaluated, expected);
+        }
+    }
+
     fn test_eval(input: &str) -> Option<Object> {
         let mut lexer = Lexer::new(input);
         let mut parser = Parser::new(&mut lexer);
@@ -66,6 +77,17 @@ mod tests {
             match obj {
                 Object::Integer(value) => assert_eq!(value, expected),
                 _ => panic!("Object not Integer"),
+            }
+        } else {
+            panic!("Object is None")
+        }
+    }
+
+    fn test_boolean_object(obj: Option<Object>, expected: bool) {
+        if let Some(obj) = obj {
+            match obj {
+                Object::Boolean(value) => assert_eq!(value, expected),
+                _ => panic!("Object is not boolean"),
             }
         } else {
             panic!("Object is None")
