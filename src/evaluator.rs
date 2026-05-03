@@ -4,6 +4,7 @@
 
 use crate::ast::{Expression, Program, Statement};
 use crate::object::Object;
+use crate::object::Object::Null;
 
 const TRUE: Object = Object::Boolean(true);
 const FALSE: Object = Object::Boolean(false);
@@ -41,6 +42,15 @@ fn eval_expression(expression: &Expression) -> Option<Object> {
             let right = eval_expression(&expression.right);
             Some(eval_prefix_expression(&expression.operator, right))
         }
+        Expression::Infix(infix_expression) => {
+            let left = eval_expression(&infix_expression.left);
+            let right = eval_expression(&infix_expression.right);
+            Some(eval_infix_expression(
+                &infix_expression.operator,
+                left,
+                right,
+            ))
+        }
         _ => None,
     }
 }
@@ -69,6 +79,35 @@ const fn eval_minus_prefix_operator_expression(right: Option<Object>) -> Object 
     }
 }
 
+fn eval_infix_expression(operator: &str, left: Option<Object>, right: Option<Object>) -> Object {
+    match (left, right) {
+        (Some(Object::Integer(left)), Some(Object::Integer(right))) => {
+            eval_integer_infix_expression(operator, left, right)
+        }
+        (Some(left_obj), Some(right_obj)) if operator == "==" => {
+            Object::Boolean(left_obj == right_obj)
+        }
+        (Some(left_obj), Some(right_obj)) if operator == "!=" => {
+            Object::Boolean(left_obj != right_obj)
+        }
+        _ => NULL,
+    }
+}
+
+fn eval_integer_infix_expression(operator: &str, left: i64, right: i64) -> Object {
+    match operator {
+        "+" => Object::Integer(left + right),
+        "-" => Object::Integer(left - right),
+        "*" => Object::Integer(left * right),
+        "/" => Object::Integer(left / right),
+        "<" => Object::Boolean(left < right),
+        ">" => Object::Boolean(left > right),
+        "==" => Object::Boolean(left == right),
+        "!=" => Object::Boolean(left != right),
+        _ => Null,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -78,7 +117,23 @@ mod tests {
 
     #[test]
     fn test_eval_integer_expression() {
-        let tests = [("5", 5), ("10", 10), ("-5", -5), ("-10", -10)];
+        let tests = [
+            ("5", 5),
+            ("10", 10),
+            ("-5", -5),
+            ("-10", -10),
+            ("5 + 5 + 5 + 5 - 10", 10),
+            ("2 * 2 * 2 * 2 * 2", 32),
+            ("-50 + 100 + -50", 0),
+            ("5 * 2 + 10", 20),
+            ("5 + 2 * 10", 25),
+            ("20 + 2 * -10", 0),
+            ("50 / 2 * 2 + 10", 60),
+            ("2 * (5 + 10)", 30),
+            ("3 * 3 * 3 + 10", 37),
+            ("3 * (3 * 3) + 10", 37),
+            ("(5 + 10 * 2 + 15 / 3) * 2 + -10", 50),
+        ];
 
         for (input, expected) in tests {
             let evaluated = test_eval(input);
@@ -88,7 +143,27 @@ mod tests {
 
     #[test]
     fn test_eval_boolean_expression() {
-        let tests = [("true", true), ("false", false)];
+        let tests = [
+            ("true", true),
+            ("false", false),
+            ("1 < 2", true),
+            ("1 > 2", false),
+            ("1 < 1", false),
+            ("1 > 1", false),
+            ("1 == 1", true),
+            ("1 != 1", false),
+            ("1 == 2", false),
+            ("1 != 2", true),
+            ("true == true", true),
+            ("false == false", true),
+            ("true == false", false),
+            ("true != false", true),
+            ("false != true", true),
+            ("(1 < 2) == true", true),
+            ("(1 < 2) == false", false),
+            ("(1 > 2) == true", false),
+            ("(1 > 2) == false", true),
+        ];
 
         for (input, expected) in tests {
             let evaluated = test_eval(input);
