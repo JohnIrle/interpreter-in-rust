@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: MIT
 
-use crate::ast::{Expression, Program, Statement};
+use crate::ast::{BlockStatement, Expression, IfExpression, Program, Statement};
 use crate::object::Object;
 use crate::object::Object::Null;
 
@@ -30,6 +30,7 @@ fn eval_statement(statement: &Statement) -> Option<Object> {
             .expression
             .as_ref()
             .and_then(|expression| eval_expression(expression)),
+        Statement::Block(block_statement) => eval_block_statement(block_statement),
         _ => None,
     }
 }
@@ -51,6 +52,7 @@ fn eval_expression(expression: &Expression) -> Option<Object> {
                 right,
             ))
         }
+        Expression::If(if_expression) => eval_if_expression(if_expression),
         _ => None,
     }
 }
@@ -65,9 +67,7 @@ fn eval_prefix_expression(operator: &str, right: Option<Object>) -> Object {
 
 const fn eval_bang_operator_expression(right: Option<Object>) -> Object {
     match right {
-        Some(Object::Boolean(true)) => FALSE,
-        Some(Object::Boolean(false) | Object::Null) => TRUE,
-        #[allow(clippy::match_same_arms)]
+        Some(Object::Boolean(false) | Null) => TRUE,
         _ => FALSE,
     }
 }
@@ -106,6 +106,32 @@ fn eval_integer_infix_expression(operator: &str, left: i64, right: i64) -> Objec
         "!=" => Object::Boolean(left != right),
         _ => Null,
     }
+}
+
+fn eval_block_statement(block_statement: &BlockStatement) -> Option<Object> {
+    let mut result = None;
+
+    for statement in &block_statement.statements {
+        result = eval_statement(statement);
+    }
+
+    result
+}
+
+fn eval_if_expression(if_expression: &IfExpression) -> Option<Object> {
+    let condition = eval_expression(&if_expression.condition);
+
+    if is_truthy(condition) {
+        return eval_statement(&if_expression.consequence);
+    } else if let Some(ref alternative) = if_expression.alternative {
+        return eval_statement(alternative);
+    }
+
+    Some(NULL)
+}
+
+const fn is_truthy(object: Option<Object>) -> bool {
+    !matches!(object, Some(NULL | FALSE))
 }
 
 #[cfg(test)]
@@ -188,6 +214,27 @@ mod tests {
         }
     }
 
+    #[test]
+    fn test_if_else_expressions() {
+        let tests = [
+            ("if (true) { 10 }", Some(10)),
+            ("if (false) { 10 }", None),
+            ("if (1) { 10 }", Some(10)),
+            ("if (1 < 2) { 10 }", Some(10)),
+            ("if (1 > 2) { 10 }", None),
+            ("if (1 > 2) { 10 } else { 20 }", Some(20)),
+            ("if (1 < 2) { 10 } else { 20 }", Some(10)),
+        ];
+
+        for (input, expected) in tests {
+            let evaluated = test_eval(input);
+            match evaluated {
+                Some(Object::Integer(value)) => test_integer_object(evaluated, value),
+                _ => test_null_object(evaluated),
+            }
+        }
+    }
+
     fn test_eval(input: &str) -> Option<Object> {
         let mut lexer = Lexer::new(input);
         let mut parser = Parser::new(&mut lexer);
@@ -202,5 +249,9 @@ mod tests {
 
     fn test_boolean_object(obj: Option<Object>, expected: bool) {
         assert_eq!(obj, Some(if expected { TRUE } else { FALSE }));
+    }
+
+    fn test_null_object(object: Option<Object>) {
+        assert_eq!(object, Some(NULL), "object is not NULL");
     }
 }
