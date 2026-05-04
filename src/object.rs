@@ -4,10 +4,11 @@
 
 type ObjectType = String;
 
-#[derive(PartialEq, Eq, Debug, Clone, Copy)]
+#[derive(PartialEq, Eq, Debug, Clone)]
 pub enum Object {
     Integer(i64),
     Boolean(bool),
+    Return(Box<Self>),
     Null,
 }
 
@@ -16,15 +17,8 @@ impl Object {
         match self {
             Self::Integer(value) => format!("{value}"),
             Self::Boolean(value) => format!("{value}"),
+            Self::Return(object) => object.inspect(),
             Self::Null => "null".to_string(),
-        }
-    }
-
-    pub fn object_type(&self) -> ObjectType {
-        match self {
-            Self::Integer(_) => "INTEGER".to_string(),
-            Self::Boolean(_) => "BOOLEAN".to_string(),
-            Self::Null => "NULL".to_string(),
         }
     }
 }
